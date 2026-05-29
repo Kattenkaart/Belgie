@@ -85,9 +85,9 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
     width:26px;height:26px;cursor:pointer;font-size:0.85rem;display:flex;align-items:center;justify-content:center;}
   .mobile-sheet-title{font-family:'Playfair Display',serif;font-size:0.95rem;font-weight:700;}
   .mobile-sheet-content{overflow-y:auto;flex:1;padding:0 14px 16px;}
-  .mobile-sheet-backdrop{display:block;position:fixed;inset:0;background:rgba(0,0,0,0);
-    z-index:650;pointer-events:none;transition:background 0.3s;}
-  .mobile-sheet-backdrop.open{background:rgba(0,0,0,0.3);pointer-events:all;}
+  .mobile-sheet-backdrop{display:block;position:fixed;top:0;left:0;right:0;bottom:58px;
+    background:rgba(0,0,0,0);z-index:500;pointer-events:none;transition:background 0.3s;}
+  .mobile-sheet-backdrop.open{background:rgba(0,0,0,0.2);pointer-events:all;}
 
   header{padding:0 10px;height:52px;}
   
