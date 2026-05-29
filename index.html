@@ -1581,7 +1581,7 @@ async function saveCat(){
   const addrOk=document.getElementById('addr-st').classList.contains('addr-ok')||addrInput.dataset.manualOk==='1';
   if(editCatId){
     const cat=cats.find(c=>c.id===editCatId);
-    Object.assign(cat,{name,address:addr,breed:breed||cat.breed,bio:bio||cat.bio,email:me.email||'',
+    Object.assign(cat,{name,address:addr,breed:breed||cat.breed,bio:bio||cat.bio,email:'',
       photo:mainPhotoUrl||cat.photo,thumbPos:currentThumbPos,birthdate,addrOk,extraPhotos,
       lat:verLat||cat.lat,lng:verLng||cat.lng,emoji:currentEmoji});
     const {error:updateErr}=await sb.from('cats').update({
@@ -1593,7 +1593,7 @@ async function saveCat(){
   }else{
     const lat=verLat||(OUD[0]+(Math.random()-.5)*.01);
     const lng=verLng||(OUD[1]+(Math.random()-.5)*.01);
-    const cat={id:'c'+Date.now(),name,address:addr,breed:breed||'Onbekend',bio:bio||'Nog geen bio.',email,
+    const cat={id:'c'+Date.now(),name,address:addr,breed:breed||'Onbekend',bio:bio||'Nog geen bio.',email:'',
       owner:me.id,photo:mainPhotoUrl||null,thumbPos:currentThumbPos,birthdate,
       emoji:currentEmoji,extraPhotos,lat,lng,lost:false,addrOk};
     cats.push(cat);users.find(u=>u.id===me.id)?.cats.push(cat.id);
@@ -1711,7 +1711,7 @@ function openModal(id){
     const repEl=document.getElementById('sp-reporter');
     if(repEl&&me)repEl.value=me.name;
   }
-  if(id==='login-modal'){buildPinGrids();resetLoginPin();}
+  if(id==='login-modal'){// PIN grids removedresetLoginPin();}
 }
 function closeModal(id){document.getElementById(id).classList.remove('open');pickingLoc=false;document.getElementById('map-hint').classList.remove('visible');}
 function switchTab(tab){
