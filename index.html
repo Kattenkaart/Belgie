@@ -1711,7 +1711,7 @@ function openModal(id){
     const repEl=document.getElementById('sp-reporter');
     if(repEl&&me)repEl.value=me.name;
   }
-  if(id==='login-modal'){// PIN grids removedresetLoginPin();}
+  if(id==='login-modal'){resetLoginPin();}
 }
 function closeModal(id){document.getElementById(id).classList.remove('open');pickingLoc=false;document.getElementById('map-hint').classList.remove('visible');}
 function switchTab(tab){
