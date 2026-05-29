@@ -397,7 +397,7 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
       <div id="login-area">
         <div class="form-group">
           <label class="form-label">Gebruikersnaam</label>
-          <input class="form-input" id="login-name" placeholder="Jouw naam">
+          <input class="form-input" id="login-name" placeholder="Jouw naam" autocapitalize="none" autocorrect="off" autocomplete="username">
         </div>
         <div class="form-group">
           <label class="form-label">Wachtwoord</label>
@@ -408,10 +408,6 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
         <hr class="divider">
         <div style="text-align:center;font-size:0.77rem;color:var(--mid);margin-bottom:9px;">Nog geen account?</div>
         <button class="btn btn-forest btn-full" style="margin-top:0" onclick="toRegister()">Nieuw account aanmaken</button>
-        <div class="itsme-box">
-          <span style="font-size:1.3rem">🇧🇪</span>
-          <div><strong>itsme® integratie</strong><br>In de toekomst: log in met itsme voor officiële adresverificatie via eID.<br><span class="itsme-badge">Vereist registratie als officiële app</span></div>
-        </div>
         <div style="text-align:center;margin-top:10px;font-size:0.74rem;color:var(--mid);">
           Door een account aan te maken ga je akkoord met ons <a href="#" onclick="openPrivacy();return false" style="color:var(--terracotta);text-decoration:underline;">privacybeleid</a>.
         </div>
@@ -419,7 +415,7 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
       <div id="register-area" style="display:none">
         <div class="form-group">
           <label class="form-label">Naam</label>
-          <input class="form-input" id="reg-name" placeholder="Jouw naam of bijnaam">
+          <input class="form-input" id="reg-name" placeholder="Jouw naam of bijnaam" autocapitalize="none" autocorrect="off" autocomplete="username">
         </div>
 
         <div class="form-group">
