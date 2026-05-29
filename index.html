@@ -900,41 +900,6 @@ function renderSightMkrs(){
   });
 }
 
-// Convex hull algorithm (Graham scan)
-function convexHull(pts){
-  if(pts.length<3)return pts;
-  // Find bottom-most point
-  let start=pts.reduce((a,b)=>a.lat<b.lat||(a.lat===b.lat&&a.lng<b.lng)?a:b);
-  const angle=(a,b)=>Math.atan2(b.lat-start.lat,b.lng-start.lng);
-  const dist=(a,b)=>Math.pow(a.lat-b.lat,2)+Math.pow(a.lng-b.lng,2);
-  const cross=(o,a,b)=>(a.lng-o.lng)*(b.lat-o.lat)-(a.lat-o.lat)*(b.lng-o.lng);
-  const sorted=pts.filter(p=>p!==start).sort((a,b)=>{
-    const da=angle(start,a),db=angle(start,b);
-    return da!==db?da-db:dist(start,a)-dist(start,b);
-  });
-  const hull=[start];
-  for(const p of sorted){
-    while(hull.length>1&&cross(hull[hull.length-2],hull[hull.length-1],p)<=0)hull.pop();
-    hull.push(p);
-  }
-  return hull;
-}
-
-// Smooth a polygon by adding midpoints (Chaikin's algorithm)
-function smoothHull(pts, iterations=3){
-  let p=[...pts,pts[0]]; // close the loop
-  for(let i=0;i<iterations;i++){
-    const s=[];
-    for(let j=0;j<p.length-1;j++){
-      const a=p[j],b=p[j+1];
-      s.push({lat:0.75*a.lat+0.25*b.lat, lng:0.75*a.lng+0.25*b.lng});
-      s.push({lat:0.25*a.lat+0.75*b.lat, lng:0.25*a.lng+0.75*b.lng});
-    }
-    p=[...s,s[0]];
-  }
-  return p;
-}
-
 function renderTerr(catId){
   Object.values(terrLayers).forEach(l=>map.removeLayer(l));terrLayers={};
   const cat=cats.find(c=>c.id===catId);if(!cat)return;
@@ -943,22 +908,25 @@ function renderTerr(catId){
   const col=cat.lost?'#b03030':isOwn?'#c0623a':'#3a5e4e';
   const opt={color:col,fillColor:col,fillOpacity:0.12,weight:2,dashArray:'5 4'};
 
-  if(conf.length===0){
-    // No sightings — small circle around home
-    terrLayers.c=L.circle([cat.lat,cat.lng],{radius:cat.lost?1000:150,...opt}).addTo(map);
-  } else if(conf.length===1){
-    // One sighting — circle covering both home and spotting
-    const mid={lat:(cat.lat+conf[0].lat)/2, lng:(cat.lng+conf[0].lng)/2};
-    const r=Math.max(map.distance([cat.lat,cat.lng],[conf[0].lat,conf[0].lng])/2+80,150);
-    terrLayers.c=L.circle([mid.lat,mid.lng],{radius:r,...opt}).addTo(map);
-  } else {
-    // Multiple sightings — convex hull + smooth
-    const pts=[{lat:cat.lat,lng:cat.lng},...conf.map(s=>({lat:s.lat,lng:s.lng}))];
-    const hull=convexHull(pts);
-    const smoothed=smoothHull(hull,2);
-    terrLayers.p=L.polygon(smoothed.map(p=>[p.lat,p.lng]),opt).addTo(map);
+  // Find the minimum enclosing circle:
+  // center = home location, radius = max distance to any spotting + padding
+  const pts=conf.map(s=>([s.lat,s.lng]));
+  let radius=cat.lost?1000:150; // minimum radius
+  let cx=cat.lat, cy=cat.lng;
+
+  if(pts.length>0){
+    // Expand radius to cover all sightings
+    pts.forEach(p=>{
+      const d=map.distance([cx,cy],p)+80; // +80m padding
+      if(d>radius)radius=d;
+    });
+    // Cap at reasonable max
+    radius=Math.min(radius, cat.lost?3000:1200);
   }
-  // Small dot at home location
+
+  terrLayers.c=L.circle([cx,cy],{radius,...opt}).addTo(map);
+
+  // Small dot at home
   terrLayers.h=L.circleMarker([cat.lat,cat.lng],{
     radius:5,color:col,fillColor:col,fillOpacity:0.8,weight:2
   }).addTo(map);
