@@ -1697,7 +1697,21 @@ function openModal(id){
     noLogin.style.display=me?'none':'block';fields.style.display=me?'block':'none';
     if(!editCatId){
       document.getElementById('cat-modal-title').textContent='Kat registreren';
-      clearCatForm(); // always clear when adding a new cat
+      clearCatForm();
+      // Pre-fill address from last own cat
+      if(me){
+        const myCats=cats.filter(c=>c.owner===me.id);
+        if(myCats.length>0){
+          const lastCat=myCats[myCats.length-1];
+          const addrEl=document.getElementById('f-addr');
+          addrEl.value=lastCat.address||'';
+          addrEl.dataset.manualOk='true';
+          verLat=lastCat.lat; verLng=lastCat.lng;
+          document.getElementById('addr-st').textContent=
+            lastCat.addrOk?`✓ Zelfde adres als ${lastCat.name}`:'';
+          document.getElementById('addr-st').className='addr-status addr-ok';
+        }
+      }
     }
   }
   if(id==='spot-modal'){
