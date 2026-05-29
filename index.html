@@ -421,10 +421,7 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
           <label class="form-label">Naam</label>
           <input class="form-input" id="reg-name" placeholder="Jouw naam of bijnaam">
         </div>
-        <div class="form-group">
-          <label class="form-label">E-mailadres <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:0.7rem">(voor meldingen als jouw kat gespot wordt)</span></label>
-          <input class="form-input" id="reg-email" type="email" placeholder="jouw@email.be">
-        </div>
+
         <div class="form-group">
           <label class="form-label">Wachtwoord</label>
           <input class="form-input" id="reg-password" type="password" placeholder="Kies een wachtwoord (min. 6 tekens)">
@@ -517,7 +514,7 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
             </div>
           </div>
         </div>
-        <div class="info-box" style="margin-bottom:8px;">📬 Meldingen worden verstuurd naar het e-mailadres van jouw account.</div>
+
         <hr class="divider">
         <label class="form-label">Extra foto's <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:0.7rem">(max. 3)</span></label>
         <div class="photo-gallery" id="extra-photos-preview"></div>
@@ -645,7 +642,7 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
       <p><strong>Welke gegevens verzamelen we?</strong></p>
       <ul style="margin:6px 0 12px 18px;">
         <li>Gebruikersnaam en gehashed wachtwoord</li>
-        <li>E-mailadres (optioneel, alleen voor meldingen)</li>
+
         <li>Thuisadres van katten (straatnaam + stad, huisnummer verborgen voor publiek)</li>
         <li>Foto's van katten en spottings</li>
         <li>Locatiegegevens van spottings</li>
@@ -653,7 +650,7 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
       <p><strong>Waarom?</strong></p>
       <ul style="margin:6px 0 12px 18px;">
         <li>Om katten te kunnen registreren en terugvinden</li>
-        <li>Om eigenaren te verwittigen bij een spotting (via e-mail)</li>
+        <li>Om buurtbewoners te notificeren bij spottings van vermiste katten (in-app)</li>
         <li>Om jouw sessie te bewaren (localStorage)</li>
       </ul>
       <p><strong>Hoe lang bewaren we het?</strong></p>
@@ -1027,14 +1024,40 @@ function renderCatsList(){
   el.innerHTML=html;
 }
 
+let sightFilter='confirmed';
 function renderSightList(){
   const el=document.getElementById('sightings-list');
   if(!me){
-    el.innerHTML=`<div class="empty-state"><div class="big-icon">🔐</div>Log in om de spottings van jouw katten te zien.</div>`;
+    el.innerHTML=`<div class="empty-state"><div class="big-icon">🔐</div>Log in om spottings te zien.</div>`;
     return;
   }
   const myCatIds=cats.filter(c=>c.owner===me.id).map(c=>c.id);
-  const c=sightings.filter(s=>s.status==='confirmed'&&myCatIds.includes(s.catId));
+  // Filter tabs
+  el.innerHTML=`<div style="display:flex;gap:6px;margin-bottom:12px;">
+    <button class="btn btn-sm ${sightFilter==='confirmed'?'btn-primary':'btn-outline'}" onclick="sightFilter='confirmed';renderSightList()">✅ Bevestigd</button>
+    <button class="btn btn-sm ${sightFilter==='unmatched'?'btn-primary':'btn-outline'}" onclick="sightFilter='unmatched';renderSightList()">❓ Onbekend</button>
+  </div>`;
+  let c;
+  if(sightFilter==='unmatched'){
+    // Show unmatched sightings within 10km
+    const lat=currentLat||OUD[0], lng=currentLng||OUD[1];
+    c=sightings.filter(s=>s.status==='unmatched'&&gd(lat,lng,s.lat||OUD[0],s.lng||OUD[1])<0.09);
+    if(!c.length){el.innerHTML+=`<div class="empty-state"><div class="big-icon">🔍</div>Geen onbekende spottings in de buurt.</div>`;return;}
+    el.innerHTML+=c.map(s=>`<div class="sighting-card">
+      <div class="sighting-header"><div class="sighting-cat">❓ Onbekende kat</div><div class="sighting-time">${fmt(s.time)}</div></div>
+      <div style="color:var(--mid)">📍 ${s.location}</div>
+      ${s.photo?`<img src="${s.photo}" class="sighting-photo">`:''}
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;">
+        ${cats.filter(c=>c.owner===me.id).map(c=>{
+          const prob=terrProbability(c,s.lat||OUD[0],s.lng||OUD[1]);
+          return`<button class="btn btn-sm btn-primary" onclick="claimSighting('${s.id}','${c.id}','')">
+            ${c.emoji||'🐱'} ${c.name} (${prob}%)</button>`;
+        }).join('')}
+      </div>
+    </div>`).join('');
+    return;
+  }
+  c=sightings.filter(s=>s.status==='confirmed'&&myCatIds.includes(s.catId));
   if(!c.length){el.innerHTML=`<div class="empty-state"><div class="big-icon">📍</div>Nog geen bevestigde spottings van jouw katten.</div>`;return;}
   el.innerHTML=c.map(s=>{
     const cat=cats.find(c=>c.id===s.catId);
@@ -1337,6 +1360,23 @@ async function submitSighting(){
     id:s.id,cat_id:s.catId,location:s.location,lat:s.lat,lng:s.lng,
     spotted_at:s.time,notes:s.notes,photo:s.photo,status:s.status,reporter:s.reporter
   });
+  if(catId==='unknown'){
+    // Notify owners of cats within 500m + all lost cat owners
+    const nearbyOwnerIds=new Set();
+    cats.forEach(c=>{
+      const isNearby=gd(lat,lng,c.lat,c.lng)<0.0045;
+      const isLost=c.lost;
+      if(isNearby||isLost)nearbyOwnerIds.add(c.owner);
+    });
+    nearbyOwnerIds.forEach(ownerId=>{
+      const ownerCats=cats.filter(c=>c.owner===ownerId&&(gd(lat,lng,c.lat,c.lng)<0.0045||c.lost));
+      const catNames=ownerCats.map(c=>c.name).join(', ');
+      notifs.unshift({id:'n'+Date.now(),title:'❓ Onbekende kat gespot!',
+        body:`${reporter||'Iemand'} zag een onbekende kat bij ${s.location}. Is het ${catNames}?`,
+        time:new Date().toISOString(),unread:true,type:'unmatched',
+        sightingId:s.id,lat,lng,photo:spotPhotoUrl,ownerId});
+    });
+  }
   if(catId&&catId!=='unknown'){
     const cat=cats.find(c=>c.id===catId);
     if(cat){
@@ -1521,7 +1561,6 @@ async function saveCat(){
   const addr=document.getElementById('f-addr').value.trim();
   const breed=document.getElementById('f-breed').value.trim();
   const bio=document.getElementById('f-bio').value.trim();
-  const email=me.email||''; // use account email
   const birthdate=document.getElementById('f-birthdate').value||null;
   if(!name||!addr){toast('Vul naam en adres in.',true);return;}
   // Upload photos (Storage or base64 fallback)
@@ -1546,8 +1585,7 @@ async function saveCat(){
       photo:mainPhotoUrl||cat.photo,thumbPos:currentThumbPos,birthdate,addrOk,extraPhotos,
       lat:verLat||cat.lat,lng:verLng||cat.lng,emoji:currentEmoji});
     const {error:updateErr}=await sb.from('cats').update({
-      name:cat.name,address:cat.address,breed:cat.breed,bio:cat.bio,email:cat.email,
-      photo:cat.photo,addr_ok:cat.addrOk,lat:cat.lat,lng:cat.lng,lost:cat.lost,
+      name:cat.name,address:cat.address,breed:cat.breed,bio:cat.bio,photo:cat.photo,addr_ok:cat.addrOk,lat:cat.lat,lng:cat.lng,lost:cat.lost,
       emoji:cat.emoji,extra_photos:JSON.stringify(extraPhotos),thumb_pos:currentThumbPos,birthdate:cat.birthdate||null
     }).eq('id',cat.id);
     if(updateErr){console.error('Update error:',updateErr);toast(`Fout: ${updateErr.message}`,true);return;}
@@ -1560,8 +1598,7 @@ async function saveCat(){
       emoji:currentEmoji,extraPhotos,lat,lng,lost:false,addrOk};
     cats.push(cat);users.find(u=>u.id===me.id)?.cats.push(cat.id);
     const {error:insertErr}=await sb.from('cats').insert({
-      id:cat.id,name:cat.name,address:cat.address,breed:cat.breed,bio:cat.bio,email:cat.email,
-      owner_id:cat.owner,photo:cat.photo,emoji:cat.emoji,lat:cat.lat,lng:cat.lng,
+      id:cat.id,name:cat.name,address:cat.address,breed:cat.breed,bio:cat.bio,owner_id:cat.owner,photo:cat.photo,emoji:cat.emoji,lat:cat.lat,lng:cat.lng,
       lost:cat.lost,addr_ok:cat.addrOk,extra_photos:JSON.stringify(extraPhotos),
       thumb_pos:currentThumbPos,birthdate:cat.birthdate||null
     });
@@ -1631,11 +1668,10 @@ async function doRegister(){
   if(password.length<6){errEl.textContent='Wachtwoord moet minstens 6 tekens zijn.';return;}
   if(password!==password2){errEl.textContent='Wachtwoorden komen niet overeen.';return;}
   if(users.find(u=>u.name.toLowerCase()===name.toLowerCase())){errEl.textContent='Naam al in gebruik.';return;}
-  const email=document.getElementById('reg-email')?.value.trim()||'';
   const hashedPw=await hashPassword(password);
-  const u={id:'u'+Date.now(),name,pin:hashedPw,email,cats:[]};
+  const u={id:'u'+Date.now(),name,pin:hashedPw,email:'',cats:[]};
   users.push(u);
-  await sb.from('users').insert({id:u.id,name:u.name,pin:u.pin,email:u.email});
+  await sb.from('users').insert({id:u.id,name:u.name,pin:u.pin});
   setMe(u);closeModal('login-modal');
   document.getElementById('reg-name').value='';
   document.getElementById('reg-password').value='';
@@ -1721,6 +1757,9 @@ document.addEventListener('click',e=>{
   const pill=document.getElementById('user-pill');
   if(menu&&!menu.contains(e.target)&&!pill.contains(e.target))menu.classList.remove('open');
 });
+// Supabase scheduled job (run monthly via Dashboard > Database > Extensions > pg_cron):
+// SELECT cron.schedule('cleanup-old-sightings','0 0 1 * *',
+//   $$DELETE FROM sightings WHERE status='unmatched' AND created_at < NOW() - INTERVAL '6 months'$$);
 async function loadFromSupabase(){
   try{
     const [u,c,s]=await Promise.all([
@@ -2231,18 +2270,42 @@ function backToStep1(){
   selectedSpotCatId=null;
 }
 
+let spotFilterRadius=0.0045; // default 500m in degrees
+
 function buildCatPicker(){
   const picker=document.getElementById('sp-cat-picker');
   const lat=pickedLat||currentLat||OUD[0];
   const lng=pickedLng||currentLng||OUD[1];
+
+  // Filter buttons
+  const filters=[
+    {label:'500m',val:0.0045},
+    {label:'1km',val:0.009},
+    {label:'5km',val:0.045},
+    {label:'10km',val:0.09},
+    {label:'🚨 Vermist',val:-1},
+    {label:'Alle',val:999},
+  ];
+  const filterHtml=`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;">
+    ${filters.map(f=>`<button class="btn btn-sm ${spotFilterRadius===f.val?'btn-primary':'btn-outline'}"
+      style="padding:4px 10px;font-size:0.7rem;"
+      onclick="spotFilterRadius=${f.val};buildCatPicker()">${f.label}</button>`).join('')}
+  </div>`;
+
+  // Apply filter
+  let filtered;
+  if(spotFilterRadius===-1){
+    filtered=cats.filter(c=>c.lost).map(c=>({cat:c,dist:gd(lat,lng,c.lat,c.lng)}));
+  } else if(spotFilterRadius===999){
+    filtered=cats.map(c=>({cat:c,dist:gd(lat,lng,c.lat,c.lng)}));
+  } else {
+    filtered=cats
+      .map(c=>({cat:c,dist:gd(lat,lng,c.lat,c.lng)}))
+      .filter(x=>x.dist<=spotFilterRadius);
+  }
+  const sorted=filtered.sort((a,b)=>a.dist-b.dist);
   
-  // Sort cats by distance
-  const sorted=cats
-    .map(c=>({cat:c,dist:gd(lat,lng,c.lat,c.lng)}))
-    .sort((a,b)=>a.dist-b.dist)
-    .slice(0,8); // max 8 cats shown
-  
-  let html=sorted.map(({cat,dist})=>{
+  let html=filterHtml+sorted.map(({cat,dist})=>{
     const distM=Math.round(dist*111000);
     const distStr=distM<1000?distM+'m':(dist*111).toFixed(1)+'km';
     return`<div class="sp-cat-opt" id="sp-opt-${cat.id}" onclick="selectSpotCat('${cat.id}')">
@@ -2257,6 +2320,13 @@ function buildCatPicker(){
   }).join('');
   
   // Add "not sure" option
+  if(!sorted.length){
+    html+=`<div class="empty-state" style="padding:16px 4px;">
+      <div class="big-icon">🔍</div>
+      Geen katten gevonden binnen dit bereik.
+      <button class="btn btn-outline btn-sm" style="margin-top:8px" onclick="spotFilterRadius=999;buildCatPicker()">Toon alle katten</button>
+    </div>`;
+  }
   html+=`<div class="sp-cat-opt" id="sp-opt-unknown" onclick="selectSpotCat('unknown')">
     <div class="sp-cat-opt-thumb" style="font-size:1.6rem;">🔍</div>
     <div class="sp-cat-opt-info">
@@ -2412,13 +2482,24 @@ function buildAlertsHTML(){
     type:'lost',catId:c.id,time:new Date().toISOString(),unread:true
   }));
   const myCatIds=me?cats.filter(c=>c.owner===me.id).map(c=>c.id):[];
-  const filtered=notifs.filter(n=>n.type==='info'||n.type==='lost'||(me&&myCatIds.includes(n.catId)));
+  const filtered=notifs.filter(n=>
+    n.type==='info'||n.type==='lost'||
+    (me&&(myCatIds.includes(n.catId)||n.type==='unmatched'&&n.ownerId===me.id))
+  );
   const all=[...lostAlerts,...filtered].slice(0,20);
   if(!all.length)return`<div class="empty-state"><div class="big-icon">🔔</div>Geen meldingen.</div>`;
   return all.map(n=>`<div class="notif-item${n.unread?' unread':''}" style="margin-bottom:8px;">
     <div class="notif-title">${n.title}</div>
     <div style="font-size:0.77rem;margin-top:2px">${n.body}</div>
+    ${n.photo?`<img src="${n.photo}" style="width:100%;max-height:100px;object-fit:cover;border-radius:8px;margin-top:5px;">`:''}
     ${n.type==='lost'?`<button class="btn btn-primary btn-sm" style="margin-top:7px" onclick="openSpotForCat('${n.catId}');closeMobileSheet()">🐾 Gezien!</button>`:''}
+    ${n.type==='unmatched'?`<div style="margin-top:7px;">
+      <div style="font-size:0.74rem;color:var(--mid);margin-bottom:5px;">Is het een van jouw katten?</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;">
+        ${cats.filter(c=>c.owner===me?.id).map(c=>`<button class="btn btn-sm btn-primary" onclick="claimSighting('${n.sightingId}','${c.id}','${n.id}');closeMobileSheet()">${c.emoji||'🐱'} ${c.name}</button>`).join('')}
+        <button class="btn btn-sm btn-outline" onclick="dismissNotif('${n.id}')">Niet mijn kat</button>
+      </div>
+    </div>`:''}
     <div style="font-size:0.68rem;color:var(--mid);margin-top:4px">${fmt(n.time)}</div>
   </div>`).join('');
 }
@@ -2447,6 +2528,84 @@ function showSpotPhotoHint(){
   // Show hint only when cat is selected but no photo
   const hasPhoto=prev&&prev.style.display!=='none'&&prev.src;
   hint.style.display=(!hasPhoto&&selectedSpotCatId&&selectedSpotCatId!=='unknown')?'block':'none';
+}
+
+// TERRITORY PROBABILITY
+function terrProbability(cat, lat, lng){
+  const conf=sightings.filter(s=>s.catId===cat.id&&s.status==='confirmed');
+  const allPts=[{lat:cat.lat,lng:cat.lng},...conf.map(s=>({lat:s.lat,lng:s.lng}))];
+  let radius=150;
+  allPts.forEach(p=>{
+    const d=map.distance([cat.lat,cat.lng],[p.lat,p.lng])+80;
+    if(d>radius)radius=d;
+  });
+  const dist=map.distance([lat,lng],[cat.lat,cat.lng]);
+  if(dist<=radius*0.5)return 95;
+  if(dist<=radius)return 75;
+  if(dist<=radius*1.5)return 40;
+  if(dist<=radius*2)return 20;
+  return 5;
+}
+
+// CLAIM UNMATCHED SIGHTING
+async function claimSighting(sightingId, catId, notifId){
+  const s=sightings.find(x=>x.id===sightingId);
+  const cat=cats.find(c=>c.id===catId);
+  if(!s||!cat){toast('Spotting niet meer beschikbaar.',true);return;}
+  // Check if already claimed by someone else
+  if(s.catId&&s.catId!==catId&&s.status!=='unmatched'){
+    const claimedCat=cats.find(c=>c.id===s.catId);
+    toast(`Al geclaimd als ${claimedCat?claimedCat.name:'andere kat'}. Neem contact op met de eigenaar.`,true);
+    return;
+  }
+  const prob=terrProbability(cat,s.lat,s.lng);
+  s.catId=catId; s.status='pending'; s.claimedBy=me?.id;
+  await sb.from('sightings').update({cat_id:catId,status:'pending'}).eq('id',sightingId);
+  dismissNotif(notifId);
+  notifs.unshift({id:'n'+Date.now(),
+    title:`📍 ${cat.name} mogelijk gespot! (${prob}% kans)`,
+    body:`Geclaimd op basis van territorium — ${prob}% kans dat het ${cat.name} is. Klopt het?`,
+    time:new Date().toISOString(),unread:true,type:'sighting',catId,sightingId});
+  renderAll();
+  toast(`Geclaimd als ${cat.name} (${prob}% kans)! Check Bevestigen.`);
+  if(isMobile())mobileTab('bevestigen');else switchTab('pending');
+}
+
+async function unclaimSighting(sightingId){
+  const s=sightings.find(x=>x.id===sightingId);
+  if(!s)return;
+  const lat=s.lat, lng=s.lng;
+  s.catId=null; s.status='unmatched'; s.claimedBy=null;
+  await sb.from('sightings').update({cat_id:null,status:'unmatched'}).eq('id',sightingId);
+  // Re-notify nearby owners
+  const nearbyOwnerIds=new Set();
+  cats.forEach(c=>{
+    if(gd(lat,lng,c.lat,c.lng)<0.0045||c.lost)nearbyOwnerIds.add(c.owner);
+  });
+  nearbyOwnerIds.forEach(ownerId=>{
+    const ownerCats=cats.filter(c=>c.owner===ownerId&&(gd(lat,lng,c.lat,c.lng)<0.0045||c.lost));
+    const catNames=ownerCats.map(c=>c.name).join(', ');
+    notifs.unshift({id:'n'+Date.now(),title:'❓ Onbekende kat — opnieuw gespot!',
+      body:`Eerder geclaimde spotting bij ${s.location} is teruggezet naar onbekend. Is het ${catNames}?`,
+      time:new Date().toISOString(),unread:true,type:'unmatched',
+      sightingId,lat,lng,photo:s.photo,ownerId});
+  });
+  renderAll();
+  toast('Spotting teruggezet naar onbekend en opnieuw verstuurd.');
+}
+
+async function denyAndUnclaim(sightingId){
+  // Deny the sighting and put it back as unmatched so others can claim
+  await denyS(sightingId);
+  await unclaimSighting(sightingId);
+}
+
+function dismissNotif(notifId){
+  const idx=notifs.findIndex(n=>n.id===notifId);
+  if(idx>-1)notifs.splice(idx,1);
+  renderAlerts();
+  if(typeof buildAlertsHTML==='function'){}
+  updateBadges();
 }
 
 // MOBILE SIDEBAR TOGGLE (kept for desktop)
