@@ -66,15 +66,15 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
   .mobile-sheet{
     display:block;position:fixed;bottom:-100%;left:0;right:0;
     background:var(--warm-white);border-radius:16px 16px 0 0;
-    z-index:700;max-height:80vh;
+    z-index:700;height:82vh;
     box-shadow:0 -4px 24px rgba(0,0,0,0.15);
     transition:bottom 0.3s cubic-bezier(0.32,0.72,0,1);
-    overflow:hidden;
+    overflow:hidden;display:flex;flex-direction:column;
   }
   .mobile-sheet.open{bottom:58px;}
   .mobile-sheet-handle{width:36px;height:4px;background:var(--border);border-radius:2px;
-    margin:10px auto 6px;cursor:pointer;}
-  .mobile-sheet-content{overflow-y:auto;max-height:calc(80vh - 30px);padding:0 14px 16px;}
+    margin:10px auto 6px;flex-shrink:0;cursor:pointer;}
+  .mobile-sheet-content{overflow-y:auto;flex:1;padding:0 14px 16px;}
   .mobile-sheet-backdrop{display:block;position:fixed;inset:0;background:rgba(0,0,0,0);
     z-index:650;pointer-events:none;transition:background 0.3s;}
   .mobile-sheet-backdrop.open{background:rgba(0,0,0,0.3);pointer-events:all;}
@@ -591,6 +591,17 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
 
 <div class="toast" id="toast"></div>
 
+<!-- MOBILE CAT PROFILE MODAL -->
+<div class="modal-overlay" id="mobile-cat-modal">
+  <div class="modal" style="max-width:100%;">
+    <div class="modal-header" id="mobile-cat-modal-header">
+      <div class="modal-title" id="mobile-cat-modal-name"></div>
+      <button class="modal-close" onclick="closeModal('mobile-cat-modal')">✕</button>
+    </div>
+    <div class="modal-body" id="mobile-cat-modal-body"></div>
+  </div>
+</div>
+
 <!-- COOKIE BANNER -->
 <div id="cookie-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--charcoal);color:white;padding:14px 20px;z-index:5000;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;box-shadow:0 -4px 20px rgba(0,0,0,0.2);">
   <div style="font-size:0.82rem;flex:1;min-width:200px;">
@@ -979,7 +990,7 @@ function renderCatsList(){
   // Own cats — always visible at top
   if(myCats.length){
     html+=`<div class="section-label">Mijn katten</div>`;
-    html+=myCats.map(cat=>catCardHtml(cat,true)).join('');
+    html+=myCats.map(cat=>catCardHtml(cat,true,true)).join('');
   }
 
   // Location hint if no location yet
@@ -1154,12 +1165,40 @@ function showDetail(catId){
     btns+=`<button class="btn btn-sm" style="background:#fde8e8;color:#9b2020;margin-left:auto" onclick="confirmDeleteCat('${cat.id}')">🗑️ Verwijderen</button>`;
   }
   document.getElementById('detail-actions').innerHTML=btns;
-  document.getElementById('cat-detail').classList.add('open');
-  renderCatsList();renderSightMkrs();renderTerr(catId);map.panTo([cat.lat,cat.lng]);
+  if(isMobile()){
+    // On mobile: show as proper modal
+    document.getElementById('mobile-cat-modal-name').innerHTML=
+      `${cat.name}${cat.lost?'<span class="tag tag-lost" style="font-size:0.62rem;margin-left:8px">🚨 Vermist</span>':''}`;
+    // Build full profile body
+    const age=cat.birthdate?calcAge(cat.birthdate):'';
+    const metaParts=[cat.breed];
+    if(age)metaParts.push(age);
+    if(isOwn){const s=cat.address.split(',')[0];metaParts.push(s);}
+    const photoHtml=cat.photo
+      ?`<img src="${cat.photo}" data-fs="${cat.photo}" onclick="openPhotoFullscreen(this.dataset.fs)" style="width:100%;max-height:220px;object-fit:cover;border-radius:10px;margin-bottom:10px;cursor:pointer;">`
+      :`<div style="width:100%;height:120px;background:linear-gradient(135deg,#c8b8a2,#a89880);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:3rem;margin-bottom:10px;">${cat.emoji||'🐱'}</div>`;
+    const extraHtml=(cat.extraPhotos||[]).map(p=>`<img src="${p}" data-fs="${p}" onclick="openPhotoFullscreen(this.dataset.fs)" style="width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;">`).join('');
+    document.getElementById('mobile-cat-modal-body').innerHTML=`
+      ${photoHtml}
+      ${extraHtml?`<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">${extraHtml}</div>`:''}
+      <div style="font-size:0.8rem;color:var(--mid);margin-bottom:6px;">${metaParts.join(' · ')}</div>
+      <div style="font-size:0.88rem;line-height:1.6;margin-bottom:14px;">${cat.bio}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${btns}
+      </div>`;
+    openModal('mobile-cat-modal');
+    renderSightMkrs();renderTerr(catId);map.panTo([cat.lat,cat.lng]);
+  } else {
+    document.getElementById('cat-detail').innerHTML=''; // clear old photo wraps
+    document.querySelectorAll('.detail-photo-wrap').forEach(el=>el.remove());
+    document.getElementById('cat-detail').classList.add('open');
+    renderCatsList();renderSightMkrs();renderTerr(catId);map.panTo([cat.lat,cat.lng]);
+  }
 }
 
 function closeDetail(){
   document.getElementById('cat-detail').classList.remove('open');
+  closeModal('mobile-cat-modal');
   selectedCat=null;
   Object.values(terrLayers).forEach(l=>map.removeLayer(l));terrLayers={};
   renderCatsList();renderSightMkrs();
