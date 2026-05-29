@@ -40,7 +40,45 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
 .btn-sm{padding:5px 10px;font-size:0.73rem;}.btn-full{width:100%;margin-top:8px;padding:10px;font-size:0.86rem;}
 .app{display:grid;grid-template-columns:355px 1fr;height:calc(100vh - 58px);}
 /* Mobile layout */
+/* MOBILE BOTTOM NAV */
+.mobile-nav{display:none;}
+.mobile-sheet{display:none;}
+.mobile-sheet-backdrop{display:none;}
 @media(max-width:700px){
+  /* Hide desktop sidebar */
+  .sidebar{display:none !important;}
+  /* Show mobile nav */
+  .mobile-nav{
+    display:flex;position:fixed;bottom:0;left:0;right:0;
+    background:var(--warm-white);border-top:1px solid var(--border);
+    z-index:600;height:58px;box-shadow:0 -2px 12px rgba(0,0,0,0.1);
+  }
+  .mobile-nav-item{flex:1;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:2px;cursor:pointer;padding:4px 0;
+    color:var(--mid);transition:color 0.2s;}
+  .mobile-nav-item.active{color:var(--terracotta);}
+  .mobile-nav-icon{font-size:1.3rem;line-height:1;}
+  .mobile-nav-label{font-size:0.6rem;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;}
+  .mobile-nav-badge{position:absolute;top:-2px;right:-4px;background:var(--terracotta);
+    color:white;border-radius:8px;font-size:0.55rem;font-weight:700;padding:1px 4px;min-width:14px;text-align:center;}
+  .mobile-nav-icon-wrap{position:relative;display:inline-block;}
+  /* Bottom sheet */
+  .mobile-sheet{
+    display:block;position:fixed;bottom:-100%;left:0;right:0;
+    background:var(--warm-white);border-radius:16px 16px 0 0;
+    z-index:700;max-height:80vh;
+    box-shadow:0 -4px 24px rgba(0,0,0,0.15);
+    transition:bottom 0.3s cubic-bezier(0.32,0.72,0,1);
+    overflow:hidden;
+  }
+  .mobile-sheet.open{bottom:58px;}
+  .mobile-sheet-handle{width:36px;height:4px;background:var(--border);border-radius:2px;
+    margin:10px auto 6px;cursor:pointer;}
+  .mobile-sheet-content{overflow-y:auto;max-height:calc(80vh - 30px);padding:0 14px 16px;}
+  .mobile-sheet-backdrop{display:block;position:fixed;inset:0;background:rgba(0,0,0,0);
+    z-index:650;pointer-events:none;transition:background 0.3s;}
+  .mobile-sheet-backdrop.open{background:rgba(0,0,0,0.3);pointer-events:all;}
+
   header{padding:0 10px;height:52px;}
   
   .logo{font-size:1.1rem;}
@@ -305,6 +343,33 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
     </div>
   </div>
 </div>
+
+<!-- MOBILE BOTTOM NAV -->
+<nav class="mobile-nav" id="mobile-nav">
+  <div class="mobile-nav-item active" id="nav-katten" onclick="mobileTab('katten')">
+    <div class="mobile-nav-icon">🐱</div>
+    <div class="mobile-nav-label">Katten</div>
+  </div>
+  <div class="mobile-nav-item" id="nav-gespot" onclick="mobileTab('gespot')">
+    <div class="mobile-nav-icon">📍</div>
+    <div class="mobile-nav-label">Gespot</div>
+  </div>
+  <div class="mobile-nav-item" id="nav-bevestigen" onclick="mobileTab('bevestigen')">
+    <div class="mobile-nav-icon">✅</div>
+    <div class="mobile-nav-label" id="mob-bevestigen-label">Bevestigen</div>
+  </div>
+  <div class="mobile-nav-item" id="nav-meldingen" onclick="mobileTab('meldingen')">
+    <div class="mobile-nav-icon">🔔</div>
+    <div class="mobile-nav-label" id="mob-meldingen-label">Meldingen</div>
+  </div>
+</nav>
+
+<!-- MOBILE BOTTOM SHEET -->
+<div class="mobile-sheet" id="mobile-sheet">
+  <div class="mobile-sheet-handle" onclick="closeMobileSheet()"></div>
+  <div class="mobile-sheet-content" id="mobile-sheet-content"></div>
+</div>
+<div class="mobile-sheet-backdrop" id="mobile-sheet-backdrop" onclick="closeMobileSheet()"></div>
 
 <!-- LOGIN MODAL -->
 <div class="modal-overlay" id="login-modal">
@@ -2162,12 +2227,141 @@ function openSpotForCat(catId){
   // Otherwise stay on step 1 so user picks location first
 }
 
-// MOBILE SIDEBAR TOGGLE
+// MOBILE BOTTOM NAV
+function isMobile(){return window.innerWidth<=700;}
+
+function mobileTab(tab){
+  if(!isMobile())return;
+  document.querySelectorAll('.mobile-nav-item').forEach(el=>el.classList.remove('active'));
+  document.getElementById('nav-'+tab)?.classList.add('active');
+  // Map which mobile tab → which content to show
+  const sheet=document.getElementById('mobile-sheet');
+  const content=document.getElementById('mobile-sheet-content');
+  const backdrop=document.getElementById('mobile-sheet-backdrop');
+  // Build content based on tab
+  let html='';
+  if(tab==='katten'){
+    // Re-render cats list into sheet
+    html=buildCatsHTML();
+  } else if(tab==='gespot'){
+    html=buildSightingsHTML();
+  } else if(tab==='bevestigen'){
+    html=buildPendingHTML();
+  } else if(tab==='meldingen'){
+    html=buildAlertsHTML();
+    notifs.forEach(n=>n.unread=false);
+    updateMobileBadges();
+  }
+  content.innerHTML=html;
+  sheet.classList.add('open');
+  backdrop.classList.add('open');
+}
+
+function closeMobileSheet(){
+  document.getElementById('mobile-sheet').classList.remove('open');
+  document.getElementById('mobile-sheet-backdrop').classList.remove('open');
+  document.querySelectorAll('.mobile-nav-item').forEach(el=>el.classList.remove('active'));
+}
+
+function buildCatsHTML(){
+  const userLat=currentLat,userLng=currentLng;
+  const myCats=me?cats.filter(c=>c.owner===me.id):[];
+  const myCatIds=myCats.map(c=>c.id);
+  let html='<div style="padding-top:4px;">';
+  if(myCats.length){
+    html+=`<div class="section-label">Mijn katten</div>`;
+    html+=myCats.map(cat=>catCardHtml(cat,true)).join('');
+  }
+  if(!userLat){
+    html+=`<div class="info-box" style="margin-top:8px;">📍 Klik op de kaart of gebruik GPS.<button class="btn btn-forest btn-sm" style="margin-top:7px;width:100%" onclick="useGPS()">📍 GPS gebruiken</button></div>`;
+  } else {
+    const nearby=cats.filter(c=>!myCatIds.includes(c.id)&&gd(userLat,userLng,c.lat,c.lng)<0.0045);
+    if(nearby.length){
+      html+=`<div class="section-label" style="margin-top:8px">In de buurt</div>`;
+      html+=nearby.sort((a,b)=>gd(userLat,userLng,a.lat,a.lng)-gd(userLat,userLng,b.lat,b.lng)).map(cat=>catCardHtml(cat,false)).join('');
+    } else if(!myCats.length){
+      html+=`<div class="empty-state"><div class="big-icon">🔍</div>Geen katten binnen 500m.</div>`;
+    }
+  }
+  html+='</div>';
+  return html;
+}
+
+function buildSightingsHTML(){
+  if(!me)return`<div class="empty-state"><div class="big-icon">🔐</div>Log in om spottings te zien.</div>`;
+  const myCatIds=cats.filter(c=>c.owner===me.id).map(c=>c.id);
+  const c=sightings.filter(s=>s.status==='confirmed'&&myCatIds.includes(s.catId));
+  if(!c.length)return`<div class="empty-state"><div class="big-icon">📍</div>Nog geen bevestigde spottings.</div>`;
+  return c.map(s=>{
+    const cat=cats.find(x=>x.id===s.catId);
+    return`<div class="sighting-card" style="margin-bottom:8px;">
+      <div class="sighting-header"><div class="sighting-cat">${cat?cat.name:'?'}</div><div class="sighting-time">${fmt(s.time)}</div></div>
+      <div style="color:var(--mid)">📍 ${s.location}</div>
+      ${s.notes?`<div style="font-size:0.75rem;color:var(--mid);font-style:italic">"${s.notes}"</div>`:''}
+      ${s.photo?`<img src="${s.photo}" class="sighting-photo">`:''}
+      <div class="sighting-actions">
+        <button class="btn btn-sm" style="background:#fef3cd;color:#856404" onclick="undoConfirmS('${s.id}')">↩ Ongedaan</button>
+        <button class="btn btn-sm" style="background:#fde8e8;color:#9b2020" onclick="confirmDeleteSighting('${s.id}')">🗑️</button>
+      </div></div>`;
+  }).join('');
+}
+
+function buildPendingHTML(){
+  if(!me)return`<div class="empty-state"><div class="big-icon">🔐</div>Log in om te bevestigen.</div>`;
+  const myCats=cats.filter(c=>c.owner===me.id).map(c=>c.id);
+  const mine=sightings.filter(s=>s.status==='pending'&&myCats.includes(s.catId));
+  if(!mine.length)return`<div class="empty-state"><div class="big-icon">✨</div>Alles bijgewerkt!</div>`;
+  return mine.map(s=>{
+    const cat=cats.find(c=>c.id===s.catId);
+    return`<div class="sighting-card" style="margin-bottom:8px;">
+      <div class="sighting-header"><div class="sighting-cat">${cat?cat.name:'?'}</div><div class="sighting-time">${fmt(s.time)}</div></div>
+      <div style="color:var(--mid)">📍 ${s.location}</div>
+      <div style="font-size:0.75rem;color:var(--mid)">Door: ${s.reporter||'Anoniem'}</div>
+      ${s.photo?`<img src="${s.photo}" class="sighting-photo">`:''}
+      <div class="sighting-actions">
+        <button class="btn btn-primary btn-sm" onclick="confirmS('${s.id}');closeMobileSheet()">✓ Ja!</button>
+        <button class="btn btn-sm" style="background:#fde8e8;color:#9b2020" onclick="denyS('${s.id}');closeMobileSheet()">✕ Nee</button>
+      </div></div>`;
+  }).join('');
+}
+
+function buildAlertsHTML(){
+  const lostAlerts=cats.filter(c=>c.lost).map(c=>({
+    id:'la-'+c.id,title:`🚨 ${c.name} is vermist!`,
+    body:(()=>{const p=c.address.split(',');const s=(p[0]||'').replace(/\s*\d+\s*$/,'').trim();const city=p[1]?p[1].trim().replace(/\d{4}/,'').trim():'';return`${c.name} (${c.breed}) vermist${s?' bij '+s:''}${city?' ('+city+')':''}.`;})(),
+    type:'lost',catId:c.id,time:new Date().toISOString(),unread:true
+  }));
+  const myCatIds=me?cats.filter(c=>c.owner===me.id).map(c=>c.id):[];
+  const filtered=notifs.filter(n=>n.type==='info'||n.type==='lost'||(me&&myCatIds.includes(n.catId)));
+  const all=[...lostAlerts,...filtered].slice(0,20);
+  if(!all.length)return`<div class="empty-state"><div class="big-icon">🔔</div>Geen meldingen.</div>`;
+  return all.map(n=>`<div class="notif-item${n.unread?' unread':''}" style="margin-bottom:8px;">
+    <div class="notif-title">${n.title}</div>
+    <div style="font-size:0.77rem;margin-top:2px">${n.body}</div>
+    ${n.type==='lost'?`<button class="btn btn-primary btn-sm" style="margin-top:7px" onclick="openSpotForCat('${n.catId}');closeMobileSheet()">🐾 Gezien!</button>`:''}
+    <div style="font-size:0.68rem;color:var(--mid);margin-top:4px">${fmt(n.time)}</div>
+  </div>`).join('');
+}
+
+function updateMobileBadges(){
+  if(!isMobile())return;
+  const myCatIds=me?cats.filter(c=>c.owner===me.id).map(c=>c.id):[];
+  const pending=sightings.filter(s=>s.status==='pending'&&myCatIds.includes(s.catId)).length;
+  const alerts=notifs.filter(n=>n.unread).length;
+  const bLabel=document.getElementById('mob-bevestigen-label');
+  const mLabel=document.getElementById('mob-meldingen-label');
+  if(bLabel)bLabel.textContent=pending?`Bevestigen (${pending})`:'Bevestigen';
+  if(mLabel)mLabel.textContent=alerts?`Meldingen (${alerts})`:'Meldingen';
+}
+
+// MOBILE SIDEBAR TOGGLE (kept for desktop)
 function toggleSidebar(){
+  if(isMobile())return;
   const sb=document.getElementById('sidebar');
   sb.classList.toggle('collapsed');
 }
 function expandSidebar(){
+  if(isMobile())return;
   const sb=document.getElementById('sidebar');
   if(sb.classList.contains('collapsed'))sb.classList.remove('collapsed');
 }
