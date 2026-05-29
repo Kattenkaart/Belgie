@@ -700,9 +700,16 @@ let notifs=[
 
 // MAP
 function initMap(){
-  map=L.map('map').setView(OUD,13);
+  const isMobile=window.innerWidth<=700;
+  map=L.map('map',{zoomControl:!isMobile}).setView(OUD,13);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);
   map.on('click',onMapClick);
+  // Fix attribution position on mobile immediately
+  setTimeout(()=>{
+    if(window.innerWidth<=700){
+      document.querySelectorAll('.leaflet-bottom').forEach(el=>el.style.cssText='bottom:52px!important');
+    }
+  },100);
   // Auto-center on user's location if GPS available
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(
@@ -791,8 +798,10 @@ function mkIcon(cat, clusterCount=0){
 }
 
 function dotIcon(status){
-  const c={confirmed:'#1a6636',pending:'#856404',denied:'#9b2020'}[status]||'#856404';
-  return L.divIcon({html:`<div style="width:14px;height:14px;background:${c};border:2px solid white;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.3);"></div>`,className:'',iconSize:[14,14],iconAnchor:[7,7]});
+  const c={confirmed:'#1a6636',pending:'#856404',denied:'#9b2020',inactive:'#aaa'}[status]||'#aaa';
+  const size=status==='inactive'?10:14;
+  const opacity=status==='inactive'?'0.5':'1';
+  return L.divIcon({html:`<div style="width:${size}px;height:${size}px;background:${c};border:2px solid white;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.2);opacity:${opacity};"></div>`,className:'',iconSize:[size,size],iconAnchor:[size/2,size/2]});
 }
 
 function renderCatMkrs(){
@@ -819,7 +828,11 @@ function renderCatMkrs(){
 
 function renderSightMkrs(){
   sightMkrs.forEach(m=>map.removeLayer(m));sightMkrs=[];
-  sightings.filter(s=>s.status==='confirmed').forEach(s=>{sightMkrs.push(L.marker([s.lat,s.lng],{icon:dotIcon(s.status)}).addTo(map));});
+  sightings.filter(s=>s.status==='confirmed').forEach(s=>{
+    const isSelected=selectedCat&&s.catId===selectedCat;
+    const icon=isSelected?dotIcon('confirmed'):dotIcon('inactive');
+    sightMkrs.push(L.marker([s.lat,s.lng],{icon}).addTo(map));
+  });
 }
 
 function renderTerr(catId){
@@ -1077,13 +1090,14 @@ function showDetail(catId){
   }
   document.getElementById('detail-actions').innerHTML=btns;
   document.getElementById('cat-detail').classList.add('open');
-  renderCatsList();renderTerr(catId);map.panTo([cat.lat,cat.lng]);
+  renderCatsList();renderSightMkrs();renderTerr(catId);map.panTo([cat.lat,cat.lng]);
 }
 
 function closeDetail(){
   document.getElementById('cat-detail').classList.remove('open');
-  selectedCat=null;Object.values(terrLayers).forEach(l=>map.removeLayer(l));terrLayers={};
-  renderCatsList();
+  selectedCat=null;
+  Object.values(terrLayers).forEach(l=>map.removeLayer(l));terrLayers={};
+  renderCatsList();renderSightMkrs();
 }
 
 // LOST
