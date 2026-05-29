@@ -72,7 +72,7 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
   .mobile-sheet{
     display:block;position:fixed;bottom:-100%;left:0;right:0;
     background:var(--warm-white);border-radius:16px 16px 0 0;
-    z-index:700;height:52vh;
+    z-index:700;height:45vh;
     box-shadow:0 -4px 24px rgba(0,0,0,0.15);
     transition:bottom 0.3s cubic-bezier(0.32,0.72,0,1);
     overflow:hidden;display:flex;flex-direction:column;
@@ -1140,34 +1140,10 @@ function showDetail(catId){
   selectedCat=catId;
   const cat=cats.find(c=>c.id===catId);if(!cat)return;
   const isOwn=me&&cat.owner===me.id;
-  document.getElementById('detail-name').innerHTML=`${cat.name}${cat.lost?`<span class="tag tag-lost" style="font-size:0.62rem">🚨 Vermist</span>`:''}`;
-  const ph=document.getElementById('detail-photo');
-  ph.innerHTML=cat.photo?`<img src="${cat.photo}">`:(breedEmoji(cat.breed));
   const owner=users.find(u=>u.id===cat.owner);
-  // Only show address and owner to the owner themselves
   const metaParts=[cat.breed];
   if(cat.birthdate){const age=calcAge(cat.birthdate);if(age)metaParts.push(age);}
-  if(isOwn){
-    const streetOnly=cat.address.split(',')[0];
-    metaParts.push(streetOnly);
-  }
-  document.getElementById('detail-meta').textContent=metaParts.join(' · ');
-  // Main photo + gallery
-  const photoHtml=cat.photo
-    ?`<img src="${cat.photo}" class="cat-main-photo" data-fs="${cat.photo}" onclick="openPhotoFullscreen(this.dataset.fs)">`
-    :`<div class="cat-main-photo-placeholder">${breedEmoji(cat.breed)}</div>`;
-  const extraHtml=(cat.extraPhotos||[]).map(p=>`<img src="${p}" class="gallery-thumb" data-fs="${p}" onclick="openPhotoFullscreen(this.dataset.fs)">`).join('');
-  const galleryHtml=extraHtml?`<div class="photo-gallery">${extraHtml}</div>`:'';
-  // Remove old photo wraps to prevent duplication
-  document.querySelectorAll('.detail-photo-wrap').forEach(el=>el.remove());
-  // Use the existing detail-photo element as photo container
-  const ph2=document.getElementById('detail-photo');
-  ph2.style.display='flex';
-  ph2.style.flexDirection='column';
-  ph2.style.gap='5px';
-  ph2.innerHTML=photoHtml+(galleryHtml||'');
-  const bioEl=document.getElementById('detail-bio');
-  bioEl.textContent=cat.bio;
+  if(isOwn){metaParts.push(cat.address.split(',')[0]);}
   const n=sightings.filter(s=>s.catId===cat.id&&s.status==='confirmed').length;
   let btns=`<button class="btn btn-primary btn-sm" onclick="openSpotForCat('${cat.id}')">🐾 Gespot!</button>`;
   btns+=`<span style="font-size:0.74rem;color:var(--mid);align-self:center">${n} bevestigd${n!==1?'e':''} spot${n!==1?'s':''}</span>`;
@@ -1178,7 +1154,6 @@ function showDetail(catId){
     else btns+=`<button class="btn btn-sm" style="background:#d1f0e0;color:#1a6636" onclick="markFound('${cat.id}')">✅ Gevonden!</button>`;
     btns+=`<button class="btn btn-sm" style="background:#fde8e8;color:#9b2020;margin-left:auto" onclick="confirmDeleteCat('${cat.id}')">🗑️ Verwijderen</button>`;
   }
-  document.getElementById('detail-actions').innerHTML=btns;
   if(isMobile()){
     // On mobile: show as proper modal
     document.getElementById('mobile-cat-modal-name').innerHTML=
@@ -1203,8 +1178,19 @@ function showDetail(catId){
     openModal('mobile-cat-modal');
     renderSightMkrs();renderTerr(catId);map.panTo([cat.lat,cat.lng]);
   } else {
-    document.getElementById('cat-detail').innerHTML=''; // clear old photo wraps
-    document.querySelectorAll('.detail-photo-wrap').forEach(el=>el.remove());
+    // Desktop — rebuild detail panel fresh
+    const photoHtml=cat.photo
+      ?`<img src="${cat.photo}" class="cat-main-photo" data-fs="${cat.photo}" onclick="openPhotoFullscreen(this.dataset.fs)">`
+      :`<div class="cat-main-photo-placeholder">${breedEmoji(cat.breed)}</div>`;
+    const extraHtml=(cat.extraPhotos||[]).map(p=>`<img src="${p}" class="gallery-thumb" data-fs="${p}" onclick="openPhotoFullscreen(this.dataset.fs)">`).join('');
+    const galleryHtml=extraHtml?`<div class="photo-gallery">${extraHtml}</div>`:'';
+    document.getElementById('detail-name').innerHTML=`${cat.name}${cat.lost?'<span class="tag tag-lost" style="font-size:0.62rem">🚨 Vermist</span>':''}`;
+    document.getElementById('detail-meta').textContent=metaParts.join(' · ');
+    const ph=document.getElementById('detail-photo');
+    ph.style.cssText='display:flex;flex-direction:column;gap:5px;';
+    ph.innerHTML=photoHtml+(galleryHtml||'');
+    document.getElementById('detail-bio').textContent=cat.bio;
+    document.getElementById('detail-actions').innerHTML=btns;
     document.getElementById('cat-detail').classList.add('open');
     renderCatsList();renderSightMkrs();renderTerr(catId);map.panTo([cat.lat,cat.lng]);
   }
