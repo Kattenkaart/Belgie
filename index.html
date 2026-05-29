@@ -62,18 +62,28 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
   .mobile-nav-badge{position:absolute;top:-2px;right:-4px;background:var(--terracotta);
     color:white;border-radius:8px;font-size:0.55rem;font-weight:700;padding:1px 4px;min-width:14px;text-align:center;}
   .mobile-nav-icon-wrap{position:relative;display:inline-block;}
+  /* Bigger cat cards in mobile sheet */
+  .mobile-sheet .cat-card-inner{height:100px;max-height:100px;}
+  .mobile-sheet .cat-card-thumb{width:100px;min-width:100px;}
+  .mobile-sheet .cat-card-body{padding:10px 12px;}
+  .mobile-sheet .cat-name{font-size:1.05rem;}
+  .mobile-sheet .cat-bio{font-size:0.82rem;-webkit-line-clamp:3;display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;}
   /* Bottom sheet */
   .mobile-sheet{
     display:block;position:fixed;bottom:-100%;left:0;right:0;
     background:var(--warm-white);border-radius:16px 16px 0 0;
-    z-index:700;height:82vh;
+    z-index:700;height:52vh;
     box-shadow:0 -4px 24px rgba(0,0,0,0.15);
     transition:bottom 0.3s cubic-bezier(0.32,0.72,0,1);
     overflow:hidden;display:flex;flex-direction:column;
   }
   .mobile-sheet.open{bottom:58px;}
-  .mobile-sheet-handle{width:36px;height:4px;background:var(--border);border-radius:2px;
-    margin:10px auto 6px;flex-shrink:0;cursor:pointer;}
+  .mobile-sheet-top{display:flex;align-items:center;justify-content:space-between;
+    padding:10px 14px 4px;flex-shrink:0;}
+  .mobile-sheet-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto;}
+  .mobile-sheet-close{background:var(--border);border:none;border-radius:50%;
+    width:26px;height:26px;cursor:pointer;font-size:0.85rem;display:flex;align-items:center;justify-content:center;}
+  .mobile-sheet-title{font-family:'Playfair Display',serif;font-size:0.95rem;font-weight:700;}
   .mobile-sheet-content{overflow-y:auto;flex:1;padding:0 14px 16px;}
   .mobile-sheet-backdrop{display:block;position:fixed;inset:0;background:rgba(0,0,0,0);
     z-index:650;pointer-events:none;transition:background 0.3s;}
@@ -366,7 +376,11 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
 
 <!-- MOBILE BOTTOM SHEET -->
 <div class="mobile-sheet" id="mobile-sheet">
-  <div class="mobile-sheet-handle" onclick="closeMobileSheet()"></div>
+  <div class="mobile-sheet-top">
+    <div class="mobile-sheet-handle"></div>
+    <div class="mobile-sheet-title" id="mobile-sheet-title"></div>
+    <button class="mobile-sheet-close" onclick="closeMobileSheet()">✕</button>
+  </div>
   <div class="mobile-sheet-content" id="mobile-sheet-content"></div>
 </div>
 <div class="mobile-sheet-backdrop" id="mobile-sheet-backdrop" onclick="closeMobileSheet()"></div>
@@ -2277,7 +2291,8 @@ function mobileTab(tab){
   const sheet=document.getElementById('mobile-sheet');
   const content=document.getElementById('mobile-sheet-content');
   const backdrop=document.getElementById('mobile-sheet-backdrop');
-  // Build content based on tab
+  const titles={katten:'🐱 Katten in de buurt',gespot:'📍 Mijn spottings',bevestigen:'✅ Bevestigen',meldingen:'🔔 Meldingen'};
+  document.getElementById('mobile-sheet-title').textContent=titles[tab]||'';
   let html='';
   if(tab==='katten'){
     // Re-render cats list into sheet
