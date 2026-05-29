@@ -63,11 +63,11 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
     color:white;border-radius:8px;font-size:0.55rem;font-weight:700;padding:1px 4px;min-width:14px;text-align:center;}
   .mobile-nav-icon-wrap{position:relative;display:inline-block;}
   /* Bigger cat cards in mobile sheet */
-  .mobile-sheet .cat-card-inner{height:100px;max-height:100px;}
-  .mobile-sheet .cat-card-thumb{width:100px;min-width:100px;}
+  .mobile-sheet .cat-card-inner{height:auto;min-height:100px;}
+  .mobile-sheet .cat-card-thumb{width:100px;min-width:100px;max-width:100px;}
   .mobile-sheet .cat-card-body{padding:10px 12px;}
   .mobile-sheet .cat-name{font-size:1.05rem;}
-  .mobile-sheet .cat-bio{font-size:0.82rem;-webkit-line-clamp:3;display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;}
+  .mobile-sheet .cat-bio{font-size:0.82rem;}
   /* Bottom sheet */
   .mobile-sheet{
     display:block;position:fixed;bottom:-100%;left:0;right:0;
@@ -2271,12 +2271,17 @@ function isMobile(){return window.innerWidth<=700;}
 
 function mobileTab(tab){
   if(!isMobile())return;
-  document.querySelectorAll('.mobile-nav-item').forEach(el=>el.classList.remove('active'));
-  document.getElementById('nav-'+tab)?.classList.add('active');
-  // Map which mobile tab → which content to show
   const sheet=document.getElementById('mobile-sheet');
   const content=document.getElementById('mobile-sheet-content');
   const backdrop=document.getElementById('mobile-sheet-backdrop');
+  // If already open on same tab — close it
+  const currentActive=document.querySelector('.mobile-nav-item.active');
+  if(currentActive&&currentActive.id==='nav-'+tab&&sheet.classList.contains('open')){
+    closeMobileSheet();return;
+  }
+  // Switch directly without closing first
+  document.querySelectorAll('.mobile-nav-item').forEach(el=>el.classList.remove('active'));
+  document.getElementById('nav-'+tab)?.classList.add('active');
   const titles={katten:'🐱 Katten in de buurt',gespot:'📍 Mijn spottings',bevestigen:'✅ Bevestigen',meldingen:'🔔 Meldingen'};
   document.getElementById('mobile-sheet-title').textContent=titles[tab]||'';
   let html='';
