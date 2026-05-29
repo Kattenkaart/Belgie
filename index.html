@@ -171,6 +171,8 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
 .preview-img{width:100%;border-radius:8px;margin-top:7px;max-height:150px;object-fit:cover;}
 .divider{border:none;border-top:1px solid var(--border);margin:12px 0;}
 .info-box{background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:0.78rem;color:var(--mid);}
+.itsme-box{background:#003f7f;color:white;border-radius:8px;padding:10px 13px;font-size:0.78rem;display:flex;align-items:center;gap:9px;margin-top:8px;}
+.itsme-badge{font-size:0.63rem;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:10px;margin-top:3px;display:inline-block;}
 .pin-display{font-size:1.9rem;letter-spacing:0.4em;text-align:center;min-height:42px;margin:7px 0;}
 .pin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;max-width:195px;margin:0 auto;}
 .pin-key{background:var(--cream);border:1.5px solid var(--border);border-radius:8px;padding:13px;font-size:1.05rem;font-weight:700;cursor:pointer;transition:all 0.15s;text-align:center;user-select:none;}
@@ -326,6 +328,10 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
         <hr class="divider">
         <div style="text-align:center;font-size:0.77rem;color:var(--mid);margin-bottom:9px;">Nog geen account?</div>
         <button class="btn btn-forest btn-full" style="margin-top:0" onclick="toRegister()">Nieuw account aanmaken</button>
+        <div class="itsme-box">
+          <span style="font-size:1.3rem">🇧🇪</span>
+          <div><strong>itsme® integratie</strong><br>In de toekomst: log in met itsme voor officiële adresverificatie via eID.<br><span class="itsme-badge">Vereist registratie als officiële app</span></div>
+        </div>
         <div style="text-align:center;margin-top:10px;font-size:0.74rem;color:var(--mid);">
           Door een account aan te maken ga je akkoord met ons <a href="#" onclick="openPrivacy();return false" style="color:var(--terracotta);text-decoration:underline;">privacybeleid</a>.
         </div>
@@ -822,13 +828,29 @@ function renderTerr(catId){
   const conf=sightings.filter(s=>s.catId===catId&&s.status==='confirmed');
   const isOwn=me&&cat.owner===me.id;
   const col=cat.lost?'#b03030':isOwn?'#c0623a':'#3a5e4e';
-  const pts=[{lat:cat.lat,lng:cat.lng},...conf.map(s=>({lat:s.lat,lng:s.lng}))];
-  const opt={color:col,fillColor:col,fillOpacity:0.1,weight:2,dashArray:'6 4'};
-  const baseRadius=cat.lost?1000:120; // 1km for lost cats, 120m default
-  if(conf.length===0)terrLayers.c=L.circle([cat.lat,cat.lng],{radius:baseRadius,...opt}).addTo(map);
-  else{
-    terrLayers.p=L.polygon(pts.map(p=>[p.lat,p.lng]),opt).addTo(map);
-    if(cat.lost)terrLayers.c=L.circle([cat.lat,cat.lng],{radius:1000,color:col,fillColor:col,fillOpacity:0.05,weight:1,dashArray:'4 6'}).addTo(map);
+  const opt={color:col,fillColor:col,fillOpacity:0.12,weight:2,dashArray:'6 4'};
+
+  if(conf.length===0){
+    // No sightings — small circle around home
+    const r=cat.lost?1000:150;
+    terrLayers.c=L.circle([cat.lat,cat.lng],{radius:r,...opt}).addTo(map);
+  } else {
+    // Calculate minimum bounding circle around home + all sightings
+    const pts=[{lat:cat.lat,lng:cat.lng},...conf.map(s=>({lat:s.lat,lng:s.lng}))];
+    // Find center (average)
+    const cx=pts.reduce((s,p)=>s+p.lat,0)/pts.length;
+    const cy=pts.reduce((s,p)=>s+p.lng,0)/pts.length;
+    // Find max distance from center to any point (in meters)
+    const maxDist=pts.reduce((mx,p)=>{
+      const d=map.distance([cx,cy],[p.lat,p.lng]);
+      return Math.max(mx,d);
+    },150); // minimum 150m
+    const radius=Math.min(maxDist*1.2, cat.lost?2000:800); // add 20% padding, cap at 800m
+    terrLayers.c=L.circle([cx,cy],{radius,...opt}).addTo(map);
+    // Also show home marker line
+    if(pts.length>1){
+      terrLayers.h=L.circle([cat.lat,cat.lng],{radius:30,color:col,fillColor:col,fillOpacity:0.4,weight:1}).addTo(map);
+    }
   }
 }
 
@@ -863,11 +885,11 @@ function renderCatsList(){
   const myCats=me?cats.filter(c=>c.owner===me.id):[];
   const myCatIds=myCats.map(c=>c.id);
 
-  // Nearby cats (not own, within 500m)
+  // Nearby cats (never own cats, within 500m)
   let nearbyCats=[];
   if(userLat){
     nearbyCats=cats
-      .filter(c=>!myCatIds.includes(c.id))
+      .filter(c=>!myCatIds.includes(c.id)) // exclude own cats
       .map(c=>({cat:c,dist:gd(userLat,userLng,c.lat,c.lng)}))
       .filter(x=>x.dist<0.0045)
       .sort((a,b)=>a.dist-b.dist)
@@ -876,30 +898,23 @@ function renderCatsList(){
 
   let html='';
 
-  // Always show own cats first
+  // Own cats — always visible at top
   if(myCats.length){
-    if(nearbyCats.length||!userLat)html+=`<div class="section-label">Mijn katten</div>`;
+    html+=`<div class="section-label">Mijn katten</div>`;
     html+=myCats.map(cat=>catCardHtml(cat,true)).join('');
   }
 
-  // Then nearby cats
-  if(userLat){
-    if(nearbyCats.length){
-      html+=`<div class="section-label" style="margin-top:6px">In de buurt</div>`;
-      html+=nearbyCats.map(cat=>catCardHtml(cat,false)).join('');
-    } else if(!myCats.length){
-      html+=`<div class="empty-state"><div class="big-icon">🔍</div>Geen katten gevonden binnen 500m.</div>`;
-    }
-  } else if(!myCats.length){
-    html+=`<div class="info-box" style="margin-bottom:8px;">
-      📍 Klik op de kaart of gebruik je locatie om katten in de buurt te zien.
+  // Location hint if no location yet
+  if(!userLat){
+    html+=`<div class="info-box" style="margin-top:8px;">
+      📍 Klik op de kaart of gebruik GPS om katten in de buurt te zien.
       <button class="btn btn-forest btn-sm" style="margin-top:7px;width:100%" onclick="useGPS()">📍 GPS gebruiken</button>
     </div>`;
-  } else {
-    html+=`<div class="info-box" style="margin-top:6px;">
-      📍 Klik op de kaart of gebruik GPS om ook katten in de buurt te zien.
-      <button class="btn btn-forest btn-sm" style="margin-top:7px;width:100%" onclick="useGPS()">📍 GPS gebruiken</button>
-    </div>`;
+  } else if(nearbyCats.length){
+    html+=`<div class="section-label" style="margin-top:8px">In de buurt</div>`;
+    html+=nearbyCats.map(cat=>catCardHtml(cat,false)).join('');
+  } else if(cats.filter(c=>!myCatIds.includes(c.id)).length){
+    html+=`<div class="empty-state" style="padding:16px 4px;"><div class="big-icon">🔍</div>Geen andere katten binnen 500m.</div>`;
   }
 
   el.innerHTML=html;
