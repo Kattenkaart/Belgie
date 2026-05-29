@@ -2275,12 +2275,12 @@ function mobileTab(tab){
   const sheet=document.getElementById('mobile-sheet');
   const content=document.getElementById('mobile-sheet-content');
   const backdrop=document.getElementById('mobile-sheet-backdrop');
-  // If already open on same tab — close it
+  const isOpen=sheet.classList.contains('open');
   const currentActive=document.querySelector('.mobile-nav-item.active');
-  if(currentActive&&currentActive.id==='nav-'+tab&&sheet.classList.contains('open')){
-    closeMobileSheet();return;
-  }
-  // Switch directly without closing first
+  const isSameTab=currentActive&&currentActive.id==='nav-'+tab;
+  // Tapping same tab while open → close
+  if(isSameTab&&isOpen){closeMobileSheet();return;}
+  // Always update active state
   document.querySelectorAll('.mobile-nav-item').forEach(el=>el.classList.remove('active'));
   document.getElementById('nav-'+tab)?.classList.add('active');
   const titles={katten:'🐱 Katten in de buurt',gespot:'📍 Mijn spottings',bevestigen:'✅ Bevestigen',meldingen:'🔔 Meldingen'};
@@ -2299,6 +2299,7 @@ function mobileTab(tab){
     updateMobileBadges();
   }
   content.innerHTML=html;
+  // Open immediately — no close/reopen cycle
   sheet.classList.add('open');
   backdrop.classList.add('open');
 }
