@@ -1619,12 +1619,23 @@ function openEditCat(catId){
 
 async function saveCat(){
   if(!me){toast('Log eerst in!',true);return;}
+  // Prevent double submit
+  const saveBtn=document.querySelector('#cat-fields .btn-primary');
+  if(saveBtn){
+    if(saveBtn.disabled)return;
+    saveBtn.disabled=true;
+    saveBtn.textContent='Bezig...';
+  }
   const name=document.getElementById('f-name').value.trim();
   const addr=document.getElementById('f-addr').value.trim();
   const breed=document.getElementById('f-breed').value.trim();
   const bio=document.getElementById('f-bio').value.trim();
   const birthdate=document.getElementById('f-birthdate').value||null;
-  if(!name||!addr){toast('Vul naam en adres in.',true);return;}
+  if(!name||!addr){
+    toast('Vul naam en adres in.',true);
+    if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='Kat opslaan';}
+    return;
+  }
   // Upload photos (Storage or base64 fallback)
   let mainPhotoUrl=editCatId?cats.find(c=>c.id===editCatId)?.photo:null;
   if(pendingMainPhoto){
@@ -1658,6 +1669,13 @@ async function saveCat(){
     const cat={id:'c'+Date.now(),name,address:addr,breed:breed||'Onbekend',bio:bio||'Nog geen bio.',email:'',
       owner:me.id,photo:mainPhotoUrl||null,thumbPos:currentThumbPos,birthdate,
       emoji:currentEmoji,extraPhotos,lat,lng,lost:false,addrOk};
+    // Check for duplicate (same name + owner)
+    const isDup=cats.some(c=>c.owner===me.id&&c.name.toLowerCase()===cat.name.toLowerCase()&&!editCatId);
+    if(isDup){
+      toast(`Je hebt al een kat met de naam ${cat.name}.`,true);
+      if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='Kat opslaan';}
+      return;
+    }
     cats.push(cat);users.find(u=>u.id===me.id)?.cats.push(cat.id);
     const {error:insertErr}=await sb.from('cats').insert({
       id:cat.id,name:cat.name,address:cat.address,breed:cat.breed,bio:cat.bio,owner_id:cat.owner,photo:cat.photo,emoji:cat.emoji,lat:cat.lat,lng:cat.lng,
@@ -1673,6 +1691,7 @@ async function saveCat(){
     toast(`${name} toegevoegd! 🐱`);
   }
   editCatId=null;closeModal('add-cat-modal');clearCatForm();renderAll();
+  if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='Kat opslaan';}
 }
 
 // LOGIN / REGISTER
