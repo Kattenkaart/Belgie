@@ -49,8 +49,8 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
   .sidebar{display:none !important;}
   #over-btn{display:none !important;}
   /* Show mobile nav */
-  .leaflet-bottom{bottom:64px !important;}
-  .leaflet-bottom.leaflet-right{right:4px !important;}
+  .leaflet-bottom{bottom:58px !important;z-index:500 !important;}
+  .leaflet-bottom.leaflet-right{right:2px !important;}
   .mobile-nav{
     display:flex;position:fixed;bottom:0;left:0;right:0;
     background:var(--warm-white);border-top:1px solid var(--border);
@@ -397,7 +397,14 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
   <div class="mobile-sheet-top">
     <div class="mobile-sheet-handle"></div>
     <div class="mobile-sheet-title" id="mobile-sheet-title"></div>
-    <button class="mobile-sheet-close" onclick="closeMobileSheet()">✕</button>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <button onclick="openModal('over-modal');closeMobileSheet();"
+        style="width:22px;height:22px;border-radius:50%;background:var(--border);
+        border:none;display:flex;align-items:center;justify-content:center;
+        font-family:Georgia,serif;font-style:italic;font-size:0.7rem;cursor:pointer;
+        color:var(--charcoal);padding:0;text-transform:none;flex-shrink:0;">i</button>
+      <button class="mobile-sheet-close" onclick="closeMobileSheet()">✕</button>
+    </div>
   </div>
   <div class="mobile-sheet-content" id="mobile-sheet-content"></div>
 </div>
@@ -850,7 +857,9 @@ function initMap(){
   // Fix attribution position on mobile immediately
   setTimeout(()=>{
     if(window.innerWidth<=700){
-      document.querySelectorAll('.leaflet-bottom').forEach(el=>el.style.cssText='bottom:64px!important;right:4px');
+      document.querySelectorAll('.leaflet-bottom').forEach(el=>{
+      el.style.bottom='58px';el.style.zIndex='500';
+    });
     }
   },100);
   // Auto-center on user's location if GPS available
