@@ -184,6 +184,9 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
     border-radius:12px;padding:10px 16px;line-height:1.4;}
 }
 .cat-detail{display:none;position:absolute;bottom:0;left:0;right:0;background:var(--warm-white);border-top:1px solid var(--border);border-radius:14px 14px 0 0;padding:16px 18px;z-index:500;box-shadow:0 -4px 20px rgba(0,0,0,0.1);max-height:46%;overflow-y:auto;}
+.leaflet-bottom.leaflet-right{z-index:400 !important;}
+.cat-detail.open ~ * .leaflet-bottom,
+.leaflet-bottom{z-index:400 !important;}
 .cat-detail.open{display:block;}
 .detail-close{position:absolute;top:12px;right:13px;background:var(--border);border:none;border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:0.82rem;display:flex;align-items:center;justify-content:center;}
 .detail-name{font-family:'Playfair Display',serif;font-size:1.15rem;font-weight:700;display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
@@ -857,6 +860,14 @@ function initMap(){
   map=L.map('map',{zoomControl:!isMobile}).setView(OUD,13);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);
   map.on('click',onMapClick);
+  // Lower leaflet attribution z-index so detail panel covers it
+  map.on('load',()=>{});
+  setTimeout(()=>{
+    const attr=document.querySelector('.leaflet-control-attribution');
+    if(attr){attr.style.zIndex='50';attr.style.position='relative';}
+    const bottom=document.querySelector('.leaflet-bottom');
+    if(bottom){bottom.style.zIndex='50';}
+  },500);
   // Fix attribution position on mobile immediately
   setTimeout(()=>{
     if(window.innerWidth<=700){
