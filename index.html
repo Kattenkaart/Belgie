@@ -352,8 +352,15 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
       </div>
       <div class="detail-actions" id="detail-actions"></div>
     </div>
+    <div style="padding:10px 14px 6px;border-top:1px solid var(--border);font-size:0.68rem;color:var(--mid);display:flex;justify-content:space-between;align-items:center;">
+      <span>© 2025 Jana Van de Velde</span>
+      <a href="#" onclick="openModal('over-modal');return false" style="color:var(--terracotta);text-decoration:none;">Over</a>
+    </div>
   </div>
 </div>
+
+<!-- COPYRIGHT FOOTER -->
+<div id="app-footer" style="display:none;"></div>
 
 <!-- MOBILE BOTTOM NAV -->
 <nav class="mobile-nav" id="mobile-nav">
@@ -602,6 +609,33 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
 
 <div class="toast" id="toast"></div>
 
+<!-- OVER MODAL -->
+<div class="modal-overlay" id="over-modal">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <div class="modal-title">Over KattenKaart</div>
+      <button class="modal-close" onclick="closeModal('over-modal')">✕</button>
+    </div>
+    <div class="modal-body" style="font-size:0.86rem;line-height:1.7;">
+      <div style="text-align:center;margin-bottom:16px;">
+        <div style="font-size:2.5rem;margin-bottom:6px;">🐱</div>
+        <div style="font-family:'Playfair Display',serif;font-size:1.3rem;font-weight:700;">KattenKaart België</div>
+        <div style="font-size:0.75rem;color:var(--mid);margin-top:2px;">Buurt Katten Spotter</div>
+      </div>
+      <p>KattenKaart is een gratis community-app waarmee je katten in jouw buurt kan registreren, volgen en spotten. Het idee ontstond vanuit een eenvoudige vraag: waar zwerft mijn kat eigenlijk naartoe?</p>
+      <hr class="divider">
+      <p><strong>Gemaakt door</strong><br>Jana Van de Velde<br>
+      <a href="https://www.facebook.com/profile.php?id=61590245620181" target="_blank" style="color:var(--terracotta);">📘 Facebook pagina</a></p>
+      <p><strong>Broncode</strong><br>
+      <a href="https://github.com/kattenkaart/Belgie" target="_blank" style="color:var(--terracotta);">🐙 github.com/Jana191997/Kattenkaart</a></p>
+      <p><strong>Versie</strong><br>1.0 — mei 2025</p>
+      <hr class="divider">
+      <p style="font-size:0.75rem;color:var(--mid);">© 2025 Jana Van de Velde. Alle rechten voorbehouden. KattenKaart mag niet worden gekopieerd, gewijzigd of commercieel gebruikt zonder uitdrukkelijke schriftelijke toestemming.</p>
+      <button class="btn btn-primary btn-full" style="margin-top:8px;" onclick="closeModal('over-modal')">Sluiten</button>
+    </div>
+  </div>
+</div>
+
 <!-- MOBILE CAT PROFILE MODAL -->
 <div class="modal-overlay" id="mobile-cat-modal">
   <div class="modal" style="max-width:100%;">
@@ -660,7 +694,7 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
         <li>Recht op correctie (profiel bewerken)</li>
       </ul>
       <p><strong>Contact</strong></p>
-      <p>Vragen over privacy? Stuur een bericht via de app of open een GitHub issue op Jana191997/Kattenkaart.</p>
+      <p>Vragen over privacy? Stuur een bericht via de <a href="https://www.facebook.com/profile.php?id=61590245620181" target="_blank" style="color:var(--terracotta);">Facebook pagina</a> of open een issue op <a href="https://github.com/kattenkaart/Belgie" target="_blank" style="color:var(--terracotta);">GitHub</a>.</p>
       <hr class="divider">
       <button class="btn btn-primary btn-full" onclick="closeModal('privacy-modal')">Sluiten</button>
     </div>
@@ -717,6 +751,7 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
 <!-- USER DROPDOWN MENU -->
 <div class="user-menu" id="user-menu">
   <div class="user-menu-item" onclick="openProfileModal()">✏️ Profiel bewerken</div>
+  <div class="user-menu-item" onclick="openModal('over-modal');document.getElementById('user-menu').classList.remove('open')">ℹ️ Over KattenKaart</div>
   <div class="user-menu-item" onclick="openPrivacy()">🔒 Privacybeleid</div>
   <div class="user-menu-item danger" onclick="openModal('delete-account-modal');document.getElementById('user-menu').classList.remove('open')">🗑️ Account verwijderen</div>
   <div class="user-menu-item danger" onclick="doLogout()">🚪 Uitloggen</div>
