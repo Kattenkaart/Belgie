@@ -47,7 +47,10 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
 @media(max-width:700px){
   /* Hide desktop sidebar */
   .sidebar{display:none !important;}
+  #over-btn{display:none !important;}
   /* Show mobile nav */
+  .leaflet-bottom{bottom:64px !important;}
+  .leaflet-bottom.leaflet-right{right:4px !important;}
   .mobile-nav{
     display:flex;position:fixed;bottom:0;left:0;right:0;
     background:var(--warm-white);border-top:1px solid var(--border);
@@ -847,7 +850,7 @@ function initMap(){
   // Fix attribution position on mobile immediately
   setTimeout(()=>{
     if(window.innerWidth<=700){
-      document.querySelectorAll('.leaflet-bottom').forEach(el=>el.style.cssText='bottom:52px!important');
+      document.querySelectorAll('.leaflet-bottom').forEach(el=>el.style.cssText='bottom:64px!important;right:4px');
     }
   },100);
   // Auto-center on user's location if GPS available
