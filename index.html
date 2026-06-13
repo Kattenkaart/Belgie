@@ -1242,9 +1242,10 @@ function renderAlerts(){
     if(n.type==='unmatched')return me&&(!n.ownerId||n.ownerId===me.id);
     return false;
   });
-  // Unmatched sighting alerts — show to owners of nearby cats
+  // Unmatched sighting alerts — show to owners of nearby cats (unless excluded)
   const unmatchedAlerts=me?sightings
     .filter(s=>s.status==='unmatched')
+    .filter(s=>!(window.ownerExcluded&&window.ownerExcluded.has(s.id+':'+me.id)))
     .filter(s=>{
       const myCats=cats.filter(c=>c.owner===me.id);
       return myCats.some(c=>gd(s.lat||OUD[0],s.lng||OUD[1],c.lat,c.lng)<0.0045||c.lost);
@@ -2667,6 +2668,7 @@ function buildAlertsHTML(){
   );
   const unmatchedMob=me?sightings
     .filter(s=>s.status==='unmatched')
+    .filter(s=>!(window.ownerExcluded&&window.ownerExcluded.has(s.id+':'+me.id)))
     .filter(s=>cats.filter(c=>c.owner===me.id).some(c=>gd(s.lat||OUD[0],s.lng||OUD[1],c.lat,c.lng)<0.0045||c.lost))
     .map(s=>({
       id:'um-'+s.id,title:'❓ Onbekende kat gespot!',
@@ -2818,18 +2820,20 @@ function dismissNotif(notifId){
 }
 
 async function notMyCats(sightingId, notifId){
-  // Mark this owner as having checked — store in local set
   if(!window.ownerExcluded)window.ownerExcluded=new Set();
   window.ownerExcluded.add(sightingId+':'+me?.id);
-  // Change marker to gray on map
+  // Remove from static notifs if it's there
+  const idx=notifs.findIndex(n=>n.id===notifId);
+  if(idx>-1)notifs.splice(idx,1);
+  // Re-render everything
   renderSightMkrs();
-  // Remove notif
-  dismissNotif(notifId);
+  renderAlerts();
+  updateBadges();
   toast('Bedankt! We zoeken verder wie deze kat is.');
 }
 
 // MYSTERY CAT PANEL
-function openMysteryPanel(s){
+async function openMysteryPanel(s){
   const myCats=me?cats.filter(c=>c.owner===me.id):[];
   const photoHtml=s.photo
     ?`<img src="${s.photo}" data-fs="${s.photo}" onclick="openPhotoFullscreen(this.dataset.fs)"
@@ -2849,9 +2853,12 @@ function openMysteryPanel(s){
         </div>
       </div>`
     :`<div class="info-box" style="margin-top:10px;">Log in om deze kat te claimen.</div>`;
+  // Try to get real address
+  const loc=s.location&&!s.location.startsWith('Kaartlocatie')?s.location:
+    await reverseGeocode(s.lat,s.lng).then(a=>a||s.location).catch(()=>s.location);
   document.getElementById('mystery-modal-body').innerHTML=`
     ${photoHtml}
-    <div style="font-size:0.8rem;color:var(--mid);margin-bottom:4px;">📍 ${s.location}</div>
+    <div style="font-size:0.8rem;color:var(--mid);margin-bottom:4px;">📍 ${loc}</div>
     <div style="font-size:0.8rem;color:var(--mid);margin-bottom:4px;">🕐 ${fmt(s.time||s.spotted_at)}</div>
     ${s.notes?`<div style="font-size:0.85rem;font-style:italic;margin-bottom:4px;">"${s.notes}"</div>`:''}
     <div style="font-size:0.78rem;color:var(--mid);">Gespot door: ${s.reporter||'Anoniem'}</div>
