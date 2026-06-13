@@ -694,7 +694,7 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
 </div>
 
 <!-- COOKIE BANNER -->
-<div id="cookie-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--charcoal);color:white;padding:14px 20px;z-index:5000;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;box-shadow:0 -4px 20px rgba(0,0,0,0.2);">
+<div id="cookie-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--charcoal);color:white;padding:14px 20px;z-index:5000;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;box-shadow:0 -4px 20px rgba(0,0,0,0.2);">
   <div style="font-size:0.82rem;flex:1;min-width:200px;">
     🍪 KattenKaart gebruikt localStorage om jouw sessie te bewaren. Geen tracking, geen advertenties.
     <a href="#" onclick="openPrivacy();return false" style="color:var(--terracotta-light);text-decoration:underline;">Privacybeleid</a>
@@ -1006,10 +1006,10 @@ function renderCatMkrs(){
 
 function mkMysteryIcon(){
   return L.divIcon({
-    html:`<div style="width:34px;height:34px;background:#7c5cbf;border:3px solid white;
+    html:`<div style="width:26px;height:26px;background:#7c5cbf;border:2px solid white;
       border-radius:50%;display:flex;align-items:center;justify-content:center;
-      font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,.3);cursor:pointer;">❓</div>`,
-    className:'',iconSize:[34,34],iconAnchor:[17,17]
+      font-size:12px;box-shadow:0 2px 6px rgba(0,0,0,.3);cursor:pointer;">❓</div>`,
+    className:'',iconSize:[26,26],iconAnchor:[13,13]
   });
 }
 
@@ -1442,7 +1442,11 @@ function gd(a,b,c,d){return Math.sqrt((a-c)**2+(b-d)**2);}
 // SIGHTING ACTIONS
 async function submitSighting(){
   const catId=selectedSpotCatId;
-  const loc=pickedLat?`Kaartlocatie (${pickedLat.toFixed(4)}, ${pickedLng.toFixed(4)})`:'Onbekend';
+  let loc='Onbekend';
+  if(pickedLat){
+    const addr=await reverseGeocode(pickedLat,pickedLng);
+    loc=addr||`Kaartlocatie (${pickedLat.toFixed(4)}, ${pickedLng.toFixed(4)})`;
+  }
   const time=document.getElementById('sp-time').value;
   const notes=document.getElementById('sp-notes').value.trim();
   const reporter=document.getElementById('sp-reporter').value.trim()||me?.name||'Anoniem';
@@ -2310,7 +2314,8 @@ function initCookieBanner(){
   try{
     const consent=localStorage.getItem('kk_cookie_consent');
     if(!consent){
-      document.getElementById('cookie-banner').style.display='flex';
+      const b=document.getElementById('cookie-banner');
+      b.style.display='flex';
     }
   }catch(e){document.getElementById('cookie-banner').style.display='flex';}
 }
@@ -2696,6 +2701,21 @@ function updateMobileBadges(){
   if(mLabel)mLabel.textContent=alerts?`Meldingen (${alerts})`:'Meldingen';
 }
 
+// REVERSE GEOCODE
+async function reverseGeocode(lat,lng){
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`);
+    const d=await r.json();
+    if(d.address){
+      const a=d.address;
+      const road=a.road||a.pedestrian||a.footway||'';
+      const city=a.city||a.town||a.village||a.municipality||'';
+      return [road,city].filter(Boolean).join(', ')||d.display_name.split(',').slice(0,2).join(',');
+    }
+  }catch(e){}
+  return null;
+}
+
 // SPOT PHOTO HINT
 function updateSpotPhotoHint(){
   const hint=document.getElementById('sp-photo-hint');
@@ -2781,12 +2801,32 @@ async function denyAndUnclaim(sightingId){
   await unclaimSighting(sightingId);
 }
 
+// Track which cats have been excluded per sighting
+const sightingExclusions={}; // {sightingId: [catId, ...]}
+
 function dismissNotif(notifId){
   const idx=notifs.findIndex(n=>n.id===notifId);
   if(idx>-1)notifs.splice(idx,1);
   renderAlerts();
-  if(typeof buildAlertsHTML==='function'){}
   updateBadges();
+}
+
+function excludeCatFromSighting(sightingId, catId){
+  if(!sightingExclusions[sightingId])sightingExclusions[sightingId]=[];
+  if(!sightingExclusions[sightingId].includes(catId))
+    sightingExclusions[sightingId].push(catId);
+}
+
+// Modified terrProbability that boosts others when cats excluded
+function terrProbabilityAdjusted(cat, lat, lng, sightingId){
+  const base=terrProbability(cat,lat,lng);
+  const excl=sightingExclusions[sightingId]||[];
+  if(excl.includes(cat.id))return 0; // excluded
+  // Boost probability if others excluded
+  const myOwnerCats=cats.filter(c=>c.owner===cat.owner);
+  const excludedCount=myOwnerCats.filter(c=>excl.includes(c.id)).length;
+  const boost=Math.min(excludedCount*10, 30);
+  return Math.min(base+boost, 99);
 }
 
 // MYSTERY CAT PANEL
