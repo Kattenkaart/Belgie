@@ -325,7 +325,7 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
     <div class="sidebar-drag-handle" onclick="toggleSidebar()" id="drag-handle"></div>
     <div class="sidebar-tabs" onclick="expandSidebar()">
       <button class="tab-btn active" onclick="switchTab('cats')">🐱 Katten</button>
-      <button class="tab-btn" onclick="switchTab('sightings')">📍 Gespot</button>
+      <button class="tab-btn" onclick="switchTab('sightings')">🐾 Gespot</button>
       <button class="tab-btn" onclick="switchTab('pending')">✅ <span id="pending-badge"></span>Bevestigen</button>
       <button class="tab-btn" onclick="switchTab('alerts')">🔔 <span id="alert-badge"></span>Meldingen</button>
     </div>
@@ -1176,10 +1176,31 @@ function renderSightList(){
       ${stats.badges.map(b=>`<div title="${b.desc}" style="background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:0.75rem;display:flex;align-items:center;gap:5px;">${b.icon} <strong>${b.name}</strong></div>`).join('')}
     </div>`;
   }
-  if(!uniqueSpotted.length){
+  // Pending sightings by this user
+  const myPending=sightings
+    .filter(s=>s.reporterId===me.id&&s.status==='pending'&&s.catId)
+    .map(s=>({...s,cat:cats.find(c=>c.id===s.catId)}))
+    .filter(s=>s.cat)
+    .sort((a,b)=>new Date(b.time)-new Date(a.time));
+
+  if(myPending.length){
+    html+=`<div class="section-label" style="margin-bottom:8px;margin-top:4px;">⏳ Wacht op bevestiging</div>`;
+    html+=myPending.map(s=>`
+      <div class="sighting-card" style="margin-bottom:8px;opacity:0.8;">
+        <div class="sighting-header">
+          <div class="sighting-cat">${s.cat.emoji||'🐱'} ${s.cat.name}</div>
+          <div class="sighting-time">${fmt(s.time)}</div>
+        </div>
+        <div style="color:var(--mid);font-size:0.78rem;">📍 ${s.location}</div>
+        ${s.photo?`<img src="${s.photo}" class="sighting-photo" style="cursor:pointer;" data-fs="${s.photo}" onclick="openPhotoFullscreen(this.dataset.fs)">`:''}
+        <div style="font-size:0.72rem;color:var(--mid);margin-top:4px;">Wacht op bevestiging van de eigenaar</div>
+      </div>`).join('');
+  }
+
+  if(!uniqueSpotted.length&&!myPending.length){
     html+=`<div class="empty-state"><div class="big-icon">🔍</div>Je hebt nog geen katten gespot. Druk op GESPOT! om te beginnen!</div>`;
-  } else {
-    html+=`<div class="section-label" style="margin-bottom:8px;">Katten die ik gespot heb</div>`;
+  } else if(uniqueSpotted.length){
+    html+=`<div class="section-label" style="margin-bottom:8px;${myPending.length?'margin-top:12px;':''}">✅ Bevestigd</div>`;
     html+=uniqueSpotted.map(s=>`
       <div class="cat-card" onclick="showDetail('${s.catId}')" style="cursor:pointer;">
         <div class="cat-card-inner">
