@@ -655,6 +655,32 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
   </div>
 </div>
 
+<!-- EDIT SIGHTING MODAL -->
+<div class="modal-overlay" id="edit-sighting-modal">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <div class="modal-title">Spotting bewerken</div>
+      <button class="modal-close" onclick="closeModal('edit-sighting-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Notities</label>
+        <textarea class="form-textarea" id="edit-s-notes" placeholder="Wat deed de kat?"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Foto vervangen <span style="font-weight:400;font-size:0.7rem;">(optioneel)</span></label>
+        <div class="file-upload" onclick="document.getElementById('edit-s-photo').click()">
+          <input type="file" id="edit-s-photo" accept="image/*" onchange="prevImg(this,'edit-s-prev')">
+          <div class="file-upload-icon">📸</div>
+          <div class="file-upload-text">Nieuwe foto uploaden</div>
+        </div>
+        <img id="edit-s-prev" class="preview-img" style="display:none">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="saveEditSighting()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
 <!-- MYSTERY CAT PANEL -->
 <div class="modal-overlay" id="mystery-modal">
   <div class="modal" style="max-width:420px;">
@@ -1199,6 +1225,7 @@ function renderSightList(){
         <div style="color:var(--mid);font-size:0.78rem;">📍 ${s.location}</div>
         ${s.photo?`<img src="${s.photo}" class="sighting-photo" style="cursor:pointer;" data-fs="${s.photo}" onclick="openPhotoFullscreen(this.dataset.fs)">`:''}
         <div style="font-size:0.72rem;color:#7c5cbf;margin-top:4px;">Wacht op identificatie</div>
+        <button class="btn btn-outline btn-sm" style="margin-top:6px;font-size:0.72rem;" onclick="openEditSighting('${s.id}')">✏️ Bewerken</button>
       </div>`).join('');
   }
 
@@ -1213,6 +1240,7 @@ function renderSightList(){
         <div style="color:var(--mid);font-size:0.78rem;">📍 ${s.location}</div>
         ${s.photo?`<img src="${s.photo}" class="sighting-photo" style="cursor:pointer;" data-fs="${s.photo}" onclick="openPhotoFullscreen(this.dataset.fs)">`:''}
         <div style="font-size:0.72rem;color:var(--mid);margin-top:4px;">Wacht op bevestiging van de eigenaar</div>
+        <button class="btn btn-outline btn-sm" style="margin-top:6px;font-size:0.72rem;" onclick="openEditSighting('${s.id}')">✏️ Bewerken</button>
       </div>`).join('');
   }
 
@@ -1323,7 +1351,10 @@ function renderAlerts(){
       ${n.title}
     </div>
     <div style="font-size:0.77rem;margin-top:2px">${n.body}</div>
-    ${n.photo?`<img src="${n.photo}" data-fs="${n.photo}" onclick="openPhotoFullscreen(this.dataset.fs)" style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-top:6px;cursor:pointer;">`:``}
+    ${n.photo?`<div style="position:relative;margin-top:6px;">
+      <img src="${n.photo}" data-fs="${n.photo}" onclick="openPhotoFullscreen(this.dataset.fs)" style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;cursor:pointer;">
+      <button onclick="reportPhoto('sighting','${n.sightingId||''}')" style="position:absolute;top:5px;right:5px;background:rgba(0,0,0,0.55);color:white;border:none;border-radius:5px;padding:3px 7px;font-size:0.68rem;cursor:pointer;">🚩 Melden</button>
+    </div>`:``}
     ${n.type==='lost'?`<div style="display:flex;gap:6px;margin-top:7px;flex-wrap:wrap;">
       <button class="btn btn-primary btn-sm" onclick="switchTab('cats');showDetail('${n.catId}')">📋 Bekijk profiel</button>
       <button class="btn btn-sm" style="background:rgba(192,98,58,0.12);color:var(--terracotta)" onclick="openSpotForCat('${n.catId}')">🐾 Ik heb deze kat gezien!</button>
@@ -1949,6 +1980,12 @@ async function prevImg(input,prevId){
   const p=document.getElementById(prevId);
   if(input.files&&input.files[0]){
     let file=input.files[0];
+    // Check file size — max 5MB
+    if(file.size>5*1024*1024){
+      toast('Foto is te groot (max. 5MB). Kies een kleinere foto.',true);
+      input.value='';
+      return;
+    }
     // Convert HEIC to JPG for browser compatibility
     if(file.type==='image/heic'||file.type==='image/heif'||file.name.toLowerCase().endsWith('.heic')||file.name.toLowerCase().endsWith('.heif')){
       try{
@@ -1964,6 +2001,7 @@ async function prevImg(input,prevId){
     // Store file for upload
     if(prevId==='f-prev')pendingMainPhoto=file;
     else if(prevId==='sp-prev')pendingSpotPhoto=file;
+    else if(prevId==='edit-s-prev')pendingEditPhoto=file;
     // Show preview
     const url=URL.createObjectURL(file);
     p.src=url; p.style.display='block';
@@ -3007,8 +3045,15 @@ function openCatSightings(catId){
 async function openMysteryPanel(s){
   const myCats=me?cats.filter(c=>c.owner===me.id):[];
   const photoHtml=s.photo
-    ?`<img src="${s.photo}" data-fs="${s.photo}" onclick="openPhotoFullscreen(this.dataset.fs)"
-       style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;margin-bottom:12px;cursor:pointer;">`
+    ?`<div style="position:relative;margin-bottom:12px;">
+        <img src="${s.photo}" data-fs="${s.photo}" onclick="openPhotoFullscreen(this.dataset.fs)"
+          style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;cursor:pointer;">
+        <button onclick="reportPhoto('sighting','${s.id}')"
+          style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.55);
+          color:white;border:none;border-radius:6px;padding:4px 8px;font-size:0.7rem;cursor:pointer;">
+          🚩 Melden
+        </button>
+      </div>`
     :'<div style="width:100%;height:80px;background:var(--cream);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:2rem;margin-bottom:12px;">📷</div>';
   const claimBtns=myCats.length
     ?`<div style="margin-top:12px;">
@@ -3037,6 +3082,55 @@ async function openMysteryPanel(s){
   openModal('mystery-modal');
 }
 
+// REPORT INAPPROPRIATE PHOTO
+async function reportPhoto(type, id){
+  if(!confirm('Wil je deze foto melden als ongepast?'))return;
+  await sb.from('reports').insert({
+    cat_id: type==='cat'?id:null,
+    reason: 'inappropriate_photo',
+    note: `Ongepaste foto gemeld op ${type} ${id}`,
+    reporter: me?.name||'Anoniem',
+    created_at: new Date().toISOString()
+  });
+  toast('Foto gemeld. Bedankt! We bekijken dit zo snel mogelijk.');
+}
+
+// EDIT SIGHTING
+let editSightingId=null;
+let pendingEditPhoto=null;
+
+function openEditSighting(sightingId){
+  editSightingId=sightingId;
+  pendingEditPhoto=null;
+  const s=sightings.find(x=>x.id===sightingId);
+  if(!s)return;
+  document.getElementById('edit-s-notes').value=s.notes||'';
+  const prev=document.getElementById('edit-s-prev');
+  if(s.photo){prev.src=s.photo;prev.style.display='block';}
+  else{prev.src='';prev.style.display='none';}
+  openModal('edit-sighting-modal');
+}
+
+async function saveEditSighting(){
+  const s=sightings.find(x=>x.id===editSightingId);
+  if(!s)return;
+  const notes=document.getElementById('edit-s-notes').value.trim();
+  // Upload new photo if selected
+  let photoUrl=s.photo;
+  if(pendingEditPhoto){
+    photoUrl=await uploadPhoto(pendingEditPhoto,'sightings')||s.photo;
+  }
+  s.notes=notes;
+  s.photo=photoUrl;
+  const {error}=await sb.from('sightings').update({
+    notes,photo:photoUrl
+  }).eq('id',editSightingId);
+  if(error){toast('Fout bij opslaan.',true);return;}
+  closeModal('edit-sighting-modal');
+  renderAll();
+  toast('Spotting bijgewerkt! ✓');
+}
+
 // MOBILE SIDEBAR TOGGLE (kept for desktop)
 function toggleSidebar(){
   if(isMobile())return;
@@ -3061,6 +3155,8 @@ function addExtraPhotos(input){
   const files=Array.from(input.files);
   const remaining=3-pendingExtraPhotos.length;
   if(remaining<=0){toast('Maximum 3 extra fotos bereikt.',true);return;}
+  const tooBig=files.find(f=>f.size>5*1024*1024);
+  if(tooBig){toast('Een of meer fotos zijn te groot (max. 5MB per foto).',true);input.value='';return;}
   files.slice(0,remaining).forEach(file=>{
     pendingExtraPhotos.push(file);
     // Preview with object URL
