@@ -1183,6 +1183,25 @@ function renderSightList(){
     .filter(s=>s.cat)
     .sort((a,b)=>new Date(b.time)-new Date(a.time));
 
+  // Mystery sightings (no catId yet)
+  const myMystery=sightings
+    .filter(s=>s.reporterId===me.id&&s.status==='unmatched')
+    .sort((a,b)=>new Date(b.time)-new Date(a.time));
+
+  if(myMystery.length){
+    html+=`<div class="section-label" style="margin-bottom:8px;margin-top:4px;">❓ Onbekende kat</div>`;
+    html+=myMystery.map(s=>`
+      <div class="sighting-card" style="margin-bottom:8px;opacity:0.85;border-left:3px solid #7c5cbf;">
+        <div class="sighting-header">
+          <div class="sighting-cat">❓ Onbekende kat</div>
+          <div class="sighting-time">${fmt(s.time)}</div>
+        </div>
+        <div style="color:var(--mid);font-size:0.78rem;">📍 ${s.location}</div>
+        ${s.photo?`<img src="${s.photo}" class="sighting-photo" style="cursor:pointer;" data-fs="${s.photo}" onclick="openPhotoFullscreen(this.dataset.fs)">`:''}
+        <div style="font-size:0.72rem;color:#7c5cbf;margin-top:4px;">Wacht op identificatie</div>
+      </div>`).join('');
+  }
+
   if(myPending.length){
     html+=`<div class="section-label" style="margin-bottom:8px;margin-top:4px;">⏳ Wacht op bevestiging</div>`;
     html+=myPending.map(s=>`
@@ -1197,7 +1216,7 @@ function renderSightList(){
       </div>`).join('');
   }
 
-  if(!uniqueSpotted.length&&!myPending.length){
+  if(!uniqueSpotted.length&&!myPending.length&&!myMystery.length){
     html+=`<div class="empty-state"><div class="big-icon">🔍</div>Je hebt nog geen katten gespot. Druk op GESPOT! om te beginnen!</div>`;
   } else if(uniqueSpotted.length){
     html+=`<div class="section-label" style="margin-bottom:8px;${myPending.length?'margin-top:12px;':''}">✅ Bevestigd</div>`;
