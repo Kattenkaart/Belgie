@@ -681,6 +681,30 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
   </div>
 </div>
 
+<!-- FEEDBACK MODAL -->
+<div class="modal-overlay" id="feedback-modal">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <div class="modal-title">🐛 Probleem melden</div>
+      <button class="modal-close" onclick="closeModal('feedback-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Wat ging er mis?</label>
+        <textarea class="form-textarea" id="feedback-text" placeholder="Beschrijf het probleem zo duidelijk mogelijk..." rows="4"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Jouw naam <span style="font-weight:400;font-size:0.7rem;">(optioneel)</span></label>
+        <input class="form-input" id="feedback-name" placeholder="Anoniem">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="submitFeedback()">Versturen</button>
+      <div style="font-size:0.72rem;color:var(--mid);margin-top:8px;text-align:center;">
+        Of open een issue op <a href="https://github.com/Kattenkaart/Belgie/issues/new" target="_blank" style="color:var(--terracotta);">GitHub</a>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- MYSTERY CAT PANEL -->
 <div class="modal-overlay" id="mystery-modal">
   <div class="modal" style="max-width:420px;">
@@ -788,7 +812,7 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
         <li>Recht op correctie (profiel bewerken)</li>
       </ul>
       <p><strong>Contact</strong></p>
-      <p>Vragen over privacy? Stuur een bericht via de <a href="https://www.facebook.com/profile.php?id=61590245620181" target="_blank" style="color:var(--terracotta);">Facebook pagina</a> of open een issue op <a href="https://github.com/Kattenkaart/Belgie" target="_blank" style="color:var(--terracotta);">GitHub</a>.</p>
+      <p>Een bug gevonden? <a href="#" onclick="closeModal('privacy-modal');openFeedback();return false;" style="color:var(--terracotta);">Meld het hier</a> of stuur een bericht via de <a href="https://www.facebook.com/profile.php?id=61590245620181" target="_blank" style="color:var(--terracotta);">Facebook pagina</a> of open een issue op <a href="https://github.com/Kattenkaart/Belgie" target="_blank" style="color:var(--terracotta);">GitHub</a>.</p>
       <hr class="divider">
       <button class="btn btn-primary btn-full" onclick="closeModal('privacy-modal')">Sluiten</button>
     </div>
@@ -846,6 +870,7 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
 <div class="user-menu" id="user-menu">
   <div class="user-menu-item" onclick="openProfileModal()">✏️ Profiel bewerken</div>
   <div class="user-menu-item" onclick="openModal('over-modal');document.getElementById('user-menu').classList.remove('open')">ℹ️ Over KattenKaart</div>
+  <div class="user-menu-item" onclick="openFeedback()">🐛 Probleem melden</div>
   <div class="user-menu-item" onclick="openPrivacy()">🔒 Privacybeleid</div>
   <div class="user-menu-item danger" onclick="openModal('delete-account-modal');document.getElementById('user-menu').classList.remove('open')">🗑️ Account verwijderen</div>
   <div class="user-menu-item danger" onclick="doLogout()">🚪 Uitloggen</div>
@@ -2775,7 +2800,10 @@ function buildAlertsHTML(){
       type:'unmatched',sightingId:s.id,lat:s.lat,lng:s.lng,ownerId:me.id
     })):[];
   const all=[...lostAlerts,...unmatchedMob,...filtered].slice(0,20);
-  const overLink=`<div style="text-align:center;padding:12px 0 4px;"><a href="#" onclick="openModal('over-modal');closeMobileSheet();return false;" style="font-size:0.75rem;color:var(--terracotta);text-decoration:none;"><span style="width:14px;height:14px;border-radius:50%;border:1px solid var(--terracotta);display:inline-flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-style:italic;font-size:0.65rem;margin-right:3px;">i</span>Over KattenKaart</a></div>`;
+  const overLink=`<div style="text-align:center;padding:12px 0 4px;display:flex;justify-content:center;gap:16px;">
+    <a href="#" onclick="openModal('over-modal');closeMobileSheet();return false;" style="font-size:0.75rem;color:var(--terracotta);text-decoration:none;"><span style="width:14px;height:14px;border-radius:50%;border:1px solid var(--terracotta);display:inline-flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-style:italic;font-size:0.65rem;margin-right:3px;">i</span>Over</a>
+    <a href="#" onclick="openFeedback();closeMobileSheet();return false;" style="font-size:0.75rem;color:var(--mid);text-decoration:none;">🐛 Probleem melden</a>
+  </div>`;
   if(!all.length)return overLink+`<div class="empty-state"><div class="big-icon">🔔</div>Geen meldingen.</div>`;
   return all.map(n=>`<div class="notif-item${n.unread?' unread':''}" style="margin-bottom:8px;">
     <div class="notif-title">${n.title}</div>
@@ -3129,6 +3157,61 @@ async function saveEditSighting(){
   closeModal('edit-sighting-modal');
   renderAll();
   toast('Spotting bijgewerkt! ✓');
+}
+
+// ERROR LOGGING + FEEDBACK
+
+// Automatic error catching
+window.addEventListener('error', function(e){
+  try{
+    sb.from('error_logs').insert({
+      message: e.message||'Unknown error',
+      source: e.filename||'',
+      line: e.lineno||0,
+      user: me?.name||'Anoniem',
+      url: window.location.href,
+      user_agent: navigator.userAgent.substring(0,200),
+      created_at: new Date().toISOString()
+    }).then(()=>{});
+  }catch(err){}
+});
+
+window.addEventListener('unhandledrejection', function(e){
+  try{
+    sb.from('error_logs').insert({
+      message: 'Unhandled promise: '+(e.reason?.message||String(e.reason)||'Unknown'),
+      source: 'promise',
+      line: 0,
+      user: me?.name||'Anoniem',
+      url: window.location.href,
+      user_agent: navigator.userAgent.substring(0,200),
+      created_at: new Date().toISOString()
+    }).then(()=>{});
+  }catch(err){}
+});
+
+function openFeedback(){
+  document.getElementById('user-menu').classList.remove('open');
+  document.getElementById('feedback-name').value=me?.name||'';
+  document.getElementById('feedback-text').value='';
+  openModal('feedback-modal');
+}
+
+async function submitFeedback(){
+  const text=document.getElementById('feedback-text').value.trim();
+  if(!text){toast('Beschrijf het probleem eerst.',true);return;}
+  const name=document.getElementById('feedback-name').value.trim()||'Anoniem';
+  await sb.from('error_logs').insert({
+    message:'[FEEDBACK] '+text,
+    source:'user_feedback',
+    line:0,
+    user:name,
+    url:window.location.href,
+    user_agent:navigator.userAgent.substring(0,200),
+    created_at:new Date().toISOString()
+  });
+  closeModal('feedback-modal');
+  toast('Bedankt voor je feedback! 🙏');
 }
 
 // MOBILE SIDEBAR TOGGLE (kept for desktop)
