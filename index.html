@@ -1507,7 +1507,8 @@ async function submitSighting(){
   sightings.push(s);
   await sb.from('sightings').insert({
     id:s.id,cat_id:s.catId,location:s.location,lat:s.lat,lng:s.lng,
-    spotted_at:s.time,notes:s.notes,photo:s.photo,status:s.status,reporter:s.reporter
+    spotted_at:s.time,notes:s.notes,photo:s.photo,status:s.status,
+    reporter:s.reporter,reporter_id:s.reporterId
   });
   if(catId==='unknown'){
     // Notify owners of cats within 500m + all lost cat owners
