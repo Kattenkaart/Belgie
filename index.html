@@ -1157,49 +1157,42 @@ let sightFilter='confirmed';
 function renderSightList(){
   const el=document.getElementById('sightings-list');
   if(!me){
-    el.innerHTML=`<div class="empty-state"><div class="big-icon">🔐</div>Log in om spottings te zien.</div>`;
+    el.innerHTML=`<div class="empty-state"><div class="big-icon">🔐</div>Log in om je spottings te zien.</div>`;
     return;
   }
-  const myCatIds=cats.filter(c=>c.owner===me.id).map(c=>c.id);
-  // Filter tabs
-  el.innerHTML=`<div style="display:flex;gap:6px;margin-bottom:12px;">
-    <button class="btn btn-sm ${sightFilter==='confirmed'?'btn-primary':'btn-outline'}" onclick="sightFilter='confirmed';renderSightList()">✅ Bevestigd</button>
-    <button class="btn btn-sm ${sightFilter==='unmatched'?'btn-primary':'btn-outline'}" onclick="sightFilter='unmatched';renderSightList()">❓ Onbekend</button>
+  const stats=getSpotterStats(me.id);
+  const mySpots=sightings
+    .filter(s=>s.reporterId===me.id&&s.status==='confirmed'&&s.catId)
+    .map(s=>({...s,cat:cats.find(c=>c.id===s.catId)}))
+    .filter(s=>s.cat)
+    .sort((a,b)=>new Date(b.time)-new Date(a.time));
+  const uniqueSpotted=[...new Map(mySpots.map(s=>[s.catId,s])).values()];
+  let html=`<div style="text-align:center;padding:8px 0 14px;border-bottom:1px solid var(--border);margin-bottom:12px;">
+    <div style="font-size:1.8rem;font-weight:700;color:var(--terracotta);">${stats.count}</div>
+    <div style="font-size:0.78rem;color:var(--mid);">spotting${stats.count!==1?'s':''} · ${stats.uniqueCats} unieke kat${stats.uniqueCats!==1?'ten':''}</div>
   </div>`;
-  let c;
-  if(sightFilter==='unmatched'){
-    // Show unmatched sightings within 10km
-    const lat=currentLat||OUD[0], lng=currentLng||OUD[1];
-    c=sightings.filter(s=>s.status==='unmatched'&&gd(lat,lng,s.lat||OUD[0],s.lng||OUD[1])<0.09);
-    if(!c.length){el.innerHTML+=`<div class="empty-state"><div class="big-icon">🔍</div>Geen onbekende spottings in de buurt.</div>`;return;}
-    el.innerHTML+=c.map(s=>`<div class="sighting-card">
-      <div class="sighting-header"><div class="sighting-cat">❓ Onbekende kat</div><div class="sighting-time">${fmt(s.time)}</div></div>
-      <div style="color:var(--mid)">📍 ${s.location}</div>
-      ${s.photo?`<img src="${s.photo}" class="sighting-photo">`:''}
-      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;">
-        ${cats.filter(c=>c.owner===me.id).map(c=>{
-          const prob=terrProbability(c,s.lat||OUD[0],s.lng||OUD[1]);
-          return`<button class="btn btn-sm btn-primary" onclick="claimSighting('${s.id}','${c.id}','')">
-            ${c.emoji||'🐱'} ${c.name} (${prob}%)</button>`;
-        }).join('')}
-      </div>
-    </div>`).join('');
-    return;
-  }
-  c=sightings.filter(s=>s.status==='confirmed'&&myCatIds.includes(s.catId));
-  if(!c.length){el.innerHTML=`<div class="empty-state"><div class="big-icon">📍</div>Nog geen bevestigde spottings van jouw katten.</div>`;return;}
-  el.innerHTML=c.map(s=>{
-    const cat=cats.find(c=>c.id===s.catId);
-    return`<div class="sighting-card">
-      <div class="sighting-header"><div class="sighting-cat">${cat?cat.name:'?'}</div><div class="sighting-time">${fmt(s.time)}</div></div>
-      <div style="color:var(--mid)">📍 ${s.location}</div>
-      ${s.notes?`<div style="font-size:0.75rem;color:var(--mid);margin-top:2px;font-style:italic">"${s.notes}"</div>`:''}
-      ${s.photo?`<img src="${s.photo}" class="sighting-photo">`:''}
-      <div class="sighting-actions">
-        <button class="btn btn-sm" style="background:#fde8e8;color:#9b2020" onclick="confirmDeleteSighting('${s.id}')">🗑️ Verwijderen</button>
-      </div>
+  if(stats.badges.length){
+    html+=`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">
+      ${stats.badges.map(b=>`<div title="${b.desc}" style="background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:0.75rem;display:flex;align-items:center;gap:5px;">${b.icon} <strong>${b.name}</strong></div>`).join('')}
     </div>`;
-  }).join('');
+  }
+  if(!uniqueSpotted.length){
+    html+=`<div class="empty-state"><div class="big-icon">🔍</div>Je hebt nog geen katten gespot. Druk op GESPOT! om te beginnen!</div>`;
+  } else {
+    html+=`<div class="section-label" style="margin-bottom:8px;">Katten die ik gespot heb</div>`;
+    html+=uniqueSpotted.map(s=>`
+      <div class="cat-card" onclick="showDetail('${s.catId}')" style="cursor:pointer;">
+        <div class="cat-card-inner">
+          <div class="cat-card-thumb">${s.cat.photo?`<img src="${s.cat.photo}">`:(s.cat.emoji||'🐱')}</div>
+          <div class="cat-card-body">
+            <div class="cat-name">${s.cat.name}</div>
+            <div class="cat-meta">${s.cat.breed}</div>
+            <div style="font-size:0.72rem;color:var(--mid);">Gespot: ${fmt(s.time)}</div>
+          </div>
+        </div>
+      </div>`).join('');
+  }
+  el.innerHTML=html;
 }
 
 function renderPendingList(){
