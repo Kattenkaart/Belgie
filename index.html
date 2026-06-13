@@ -1189,7 +1189,7 @@ function renderPendingList(){
 
 function renderAlerts(){
   const el=document.getElementById('alerts-list');
-  // Lost cat alerts visible to everyone
+  // Lost cat alerts — visible to everyone
   const lostAlerts=cats.filter(c=>c.lost).map(c=>({
     id:'la-'+c.id,title:`🚨 ${c.name} is vermist!`,
     body:(()=>{
@@ -1210,7 +1210,26 @@ function renderAlerts(){
     if(n.type==='unmatched')return me&&(!n.ownerId||n.ownerId===me.id);
     return false;
   });
-  const all=[...lostAlerts,...filteredNotifs].slice(0,25);
+  // Unmatched sighting alerts — show to owners of nearby cats
+  const unmatchedAlerts=me?sightings
+    .filter(s=>s.status==='unmatched')
+    .filter(s=>{
+      const myCats=cats.filter(c=>c.owner===me.id);
+      return myCats.some(c=>gd(s.lat||OUD[0],s.lng||OUD[1],c.lat,c.lng)<0.0045||c.lost);
+    })
+    .map(s=>({
+      id:'um-'+s.id,
+      title:'❓ Onbekende kat gespot!',
+      body:`${s.reporter||'Iemand'} zag een onbekende kat bij ${s.location}.`,
+      photo:s.photo,
+      time:s.time||s.spotted_at,
+      unread:true,
+      type:'unmatched',
+      sightingId:s.id,
+      lat:s.lat,lng:s.lng,
+      ownerId:me.id
+    })):[];
+  const all=[...lostAlerts,...unmatchedAlerts,...filteredNotifs].slice(0,25);
   if(!all.length){el.innerHTML=`<div class="empty-state"><div class="big-icon">🔔</div>Geen meldingen.</div>`;return;}
   el.innerHTML=all.map(n=>`<div class="notif-item${n.unread?' unread':''}">
     <div class="notif-title" ${n.catId?`onclick="switchTab('cats');showDetail('${n.catId}')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px"`:''}>
@@ -2595,7 +2614,16 @@ function buildAlertsHTML(){
     n.type==='info'||n.type==='lost'||
     (me&&(myCatIds.includes(n.catId)||n.type==='unmatched'&&n.ownerId===me.id))
   );
-  const all=[...lostAlerts,...filtered].slice(0,20);
+  const unmatchedMob=me?sightings
+    .filter(s=>s.status==='unmatched')
+    .filter(s=>cats.filter(c=>c.owner===me.id).some(c=>gd(s.lat||OUD[0],s.lng||OUD[1],c.lat,c.lng)<0.0045||c.lost))
+    .map(s=>({
+      id:'um-'+s.id,title:'❓ Onbekende kat gespot!',
+      body:`${s.reporter||'Iemand'} zag een onbekende kat bij ${s.location}.`,
+      photo:s.photo,time:s.time||s.spotted_at,unread:true,
+      type:'unmatched',sightingId:s.id,lat:s.lat,lng:s.lng,ownerId:me.id
+    })):[];
+  const all=[...lostAlerts,...unmatchedMob,...filtered].slice(0,20);
   const overLink=`<div style="text-align:center;padding:12px 0 4px;"><a href="#" onclick="openModal('over-modal');closeMobileSheet();return false;" style="font-size:0.75rem;color:var(--terracotta);text-decoration:none;"><span style="width:14px;height:14px;border-radius:50%;border:1px solid var(--terracotta);display:inline-flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-style:italic;font-size:0.65rem;margin-right:3px;">i</span>Over KattenKaart</a></div>`;
   if(!all.length)return overLink+`<div class="empty-state"><div class="big-icon">🔔</div>Geen meldingen.</div>`;
   return all.map(n=>`<div class="notif-item${n.unread?' unread':''}" style="margin-bottom:8px;">
