@@ -1004,14 +1004,15 @@ function renderCatMkrs(){
   });
 }
 
-function mkMysteryIcon(){
+function mkMysteryIcon(color='#7c5cbf'){
   return L.divIcon({
-    html:`<div style="width:26px;height:26px;background:#7c5cbf;border:2px solid white;
+    html:`<div style="width:26px;height:26px;background:${color};border:2px solid white;
       border-radius:50%;display:flex;align-items:center;justify-content:center;
       font-size:12px;box-shadow:0 2px 6px rgba(0,0,0,.3);cursor:pointer;">❓</div>`,
     className:'',iconSize:[26,26],iconAnchor:[13,13]
   });
 }
+function mkMysteryIconGray(){return mkMysteryIcon('#aaa');}
 
 function renderSightMkrs(){
   sightMkrs.forEach(m=>map.removeLayer(m));sightMkrs=[];
@@ -1023,7 +1024,9 @@ function renderSightMkrs(){
   });
   // Unmatched sightings — purple question mark
   sightings.filter(s=>s.status==='unmatched'&&s.lat&&s.lng).forEach(s=>{
-    const m=L.marker([s.lat,s.lng],{icon:mkMysteryIcon()})
+    const excluded=window.ownerExcluded&&me&&window.ownerExcluded.has(s.id+':'+me.id);
+    const icon=excluded?mkMysteryIconGray():mkMysteryIcon();
+    const m=L.marker([s.lat,s.lng],{icon})
       .addTo(map)
       .on('click',()=>openMysteryPanel(s));
     sightMkrs.push(m);
@@ -2682,8 +2685,11 @@ function buildAlertsHTML(){
     ${n.type==='unmatched'?`<div style="margin-top:7px;">
       <div style="font-size:0.74rem;color:var(--mid);margin-bottom:5px;">Is het een van jouw katten?</div>
       <div style="display:flex;gap:5px;flex-wrap:wrap;">
-        ${cats.filter(c=>c.owner===me?.id).map(c=>`<button class="btn btn-sm btn-primary" onclick="claimSighting('${n.sightingId}','${c.id}','${n.id}');closeMobileSheet()">${c.emoji||'🐱'} ${c.name}</button>`).join('')}
-        <button class="btn btn-sm btn-outline" onclick="dismissNotif('${n.id}')">Niet mijn kat</button>
+        ${cats.filter(c=>c.owner===me?.id).map(c=>{
+          const prob=n.lat?terrProbability(c,n.lat,n.lng):0;
+          return`<button class="btn btn-sm btn-primary" onclick="claimSighting('${n.sightingId}','${c.id}','${n.id}');closeMobileSheet()">${c.emoji||'🐱'} ${c.name} (${prob}%)</button>`;
+        }).join('')}
+        <button class="btn btn-sm btn-outline" onclick="notMyCats('${n.sightingId}','${n.id}');closeMobileSheet()">Niet mijn kat(ten)</button>
       </div>
     </div>`:''}
     <div style="font-size:0.68rem;color:var(--mid);margin-top:4px">${fmt(n.time)}</div>
@@ -2811,22 +2817,15 @@ function dismissNotif(notifId){
   updateBadges();
 }
 
-function excludeCatFromSighting(sightingId, catId){
-  if(!sightingExclusions[sightingId])sightingExclusions[sightingId]=[];
-  if(!sightingExclusions[sightingId].includes(catId))
-    sightingExclusions[sightingId].push(catId);
-}
-
-// Modified terrProbability that boosts others when cats excluded
-function terrProbabilityAdjusted(cat, lat, lng, sightingId){
-  const base=terrProbability(cat,lat,lng);
-  const excl=sightingExclusions[sightingId]||[];
-  if(excl.includes(cat.id))return 0; // excluded
-  // Boost probability if others excluded
-  const myOwnerCats=cats.filter(c=>c.owner===cat.owner);
-  const excludedCount=myOwnerCats.filter(c=>excl.includes(c.id)).length;
-  const boost=Math.min(excludedCount*10, 30);
-  return Math.min(base+boost, 99);
+async function notMyCats(sightingId, notifId){
+  // Mark this owner as having checked — store in local set
+  if(!window.ownerExcluded)window.ownerExcluded=new Set();
+  window.ownerExcluded.add(sightingId+':'+me?.id);
+  // Change marker to gray on map
+  renderSightMkrs();
+  // Remove notif
+  dismissNotif(notifId);
+  toast('Bedankt! We zoeken verder wie deze kat is.');
 }
 
 // MYSTERY CAT PANEL
