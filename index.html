@@ -1046,7 +1046,7 @@ function renderSightMkrs(){
   });
   // Unmatched sightings — purple question mark
   sightings.filter(s=>s.status==='unmatched'&&s.lat&&s.lng).forEach(s=>{
-    const excluded=window.ownerExcluded&&me&&window.ownerExcluded.has(s.id+':'+me.id);
+    const excluded=window.ownerExcluded&&window.ownerExcluded.has(s.id+':'+(me?.id||'anon'));
     const icon=excluded?mkMysteryIconGray():mkMysteryIcon();
     const m=L.marker([s.lat,s.lng],{icon})
       .addTo(map)
@@ -1259,7 +1259,7 @@ function renderAlerts(){
   // Unmatched sighting alerts — show to owners of nearby cats (unless excluded)
   const unmatchedAlerts=me?sightings
     .filter(s=>s.status==='unmatched')
-    .filter(s=>!(window.ownerExcluded&&window.ownerExcluded.has(s.id+':'+me.id)))
+    .filter(s=>!(window.ownerExcluded&&window.ownerExcluded.has(s.id+':'+(me?.id||'anon'))))
     .filter(s=>{
       const myCats=cats.filter(c=>c.owner===me.id);
       return myCats.some(c=>gd(s.lat||OUD[0],s.lng||OUD[1],c.lat,c.lng)<0.0045||c.lost);
@@ -1994,6 +1994,8 @@ window.onload=async()=>{
   initCookieBanner();
   initMap();
   await loadFromSupabase();
+  // Laad uitgesloten spottings
+  loadOwnerExcluded();
   // Sessie herstellen van localStorage
   try{
     const saved=localStorage.getItem('kk_session');
@@ -2685,7 +2687,7 @@ function buildAlertsHTML(){
   );
   const unmatchedMob=me?sightings
     .filter(s=>s.status==='unmatched')
-    .filter(s=>!(window.ownerExcluded&&window.ownerExcluded.has(s.id+':'+me.id)))
+    .filter(s=>!(window.ownerExcluded&&window.ownerExcluded.has(s.id+':'+(me?.id||'anon'))))
     .filter(s=>cats.filter(c=>c.owner===me.id).some(c=>gd(s.lat||OUD[0],s.lng||OUD[1],c.lat,c.lng)<0.0045||c.lost))
     .map(s=>({
       id:'um-'+s.id,title:'❓ Onbekende kat gespot!',
@@ -2836,13 +2838,22 @@ function dismissNotif(notifId){
   updateBadges();
 }
 
+function loadOwnerExcluded(){
+  try{
+    const saved=localStorage.getItem('kk_excluded');
+    window.ownerExcluded=new Set(saved?JSON.parse(saved):[]);
+  }catch(e){window.ownerExcluded=new Set();}
+}
+function saveOwnerExcluded(){
+  try{localStorage.setItem('kk_excluded',JSON.stringify([...window.ownerExcluded]));}catch(e){}
+}
+
 async function notMyCats(sightingId, notifId){
-  if(!window.ownerExcluded)window.ownerExcluded=new Set();
-  window.ownerExcluded.add(sightingId+':'+me?.id);
-  // Remove from static notifs if it's there
+  if(!window.ownerExcluded)loadOwnerExcluded();
+  window.ownerExcluded.add(sightingId+':'+(me?.id||'anon'));
+  saveOwnerExcluded();
   const idx=notifs.findIndex(n=>n.id===notifId);
   if(idx>-1)notifs.splice(idx,1);
-  // Re-render everything
   renderSightMkrs();
   renderAlerts();
   updateBadges();
