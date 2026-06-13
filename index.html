@@ -633,6 +633,17 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
 
 <div class="toast" id="toast"></div>
 
+<!-- MYSTERY CAT PANEL -->
+<div class="modal-overlay" id="mystery-modal">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <div class="modal-title">❓ Onbekende kat</div>
+      <button class="modal-close" onclick="closeModal('mystery-modal')">✕</button>
+    </div>
+    <div class="modal-body" id="mystery-modal-body"></div>
+  </div>
+</div>
+
 <!-- OVER MODAL -->
 <div class="modal-overlay" id="over-modal">
   <div class="modal" style="max-width:480px;">
@@ -993,12 +1004,29 @@ function renderCatMkrs(){
   });
 }
 
+function mkMysteryIcon(){
+  return L.divIcon({
+    html:`<div style="width:34px;height:34px;background:#7c5cbf;border:3px solid white;
+      border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,.3);cursor:pointer;">❓</div>`,
+    className:'',iconSize:[34,34],iconAnchor:[17,17]
+  });
+}
+
 function renderSightMkrs(){
   sightMkrs.forEach(m=>map.removeLayer(m));sightMkrs=[];
+  // Confirmed sightings
   sightings.filter(s=>s.status==='confirmed').forEach(s=>{
     const isSelected=selectedCat&&s.catId===selectedCat;
     const icon=isSelected?dotIcon('confirmed'):dotIcon('inactive');
     sightMkrs.push(L.marker([s.lat,s.lng],{icon}).addTo(map));
+  });
+  // Unmatched sightings — purple question mark
+  sightings.filter(s=>s.status==='unmatched'&&s.lat&&s.lng).forEach(s=>{
+    const m=L.marker([s.lat,s.lng],{icon:mkMysteryIcon()})
+      .addTo(map)
+      .on('click',()=>openMysteryPanel(s));
+    sightMkrs.push(m);
   });
 }
 
@@ -2758,6 +2786,37 @@ function dismissNotif(notifId){
   renderAlerts();
   if(typeof buildAlertsHTML==='function'){}
   updateBadges();
+}
+
+// MYSTERY CAT PANEL
+function openMysteryPanel(s){
+  const myCats=me?cats.filter(c=>c.owner===me.id):[];
+  const photoHtml=s.photo
+    ?`<img src="${s.photo}" data-fs="${s.photo}" onclick="openPhotoFullscreen(this.dataset.fs)"
+       style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;margin-bottom:12px;cursor:pointer;">`
+    :'<div style="width:100%;height:80px;background:var(--cream);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:2rem;margin-bottom:12px;">📷</div>';
+  const claimBtns=myCats.length
+    ?`<div style="margin-top:12px;">
+        <div style="font-size:0.8rem;color:var(--mid);margin-bottom:6px;">Is dit een van jouw katten?</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          ${myCats.map(c=>{
+            const prob=terrProbability(c,s.lat||OUD[0],s.lng||OUD[1]);
+            return`<button class="btn btn-primary btn-sm" onclick="claimSighting('${s.id}','${c.id}','');closeModal('mystery-modal')">
+              ${c.emoji||'🐱'} ${c.name} (${prob}%)
+            </button>`;
+          }).join('')}
+          <button class="btn btn-outline btn-sm" onclick="closeModal('mystery-modal')">Niet mijn kat</button>
+        </div>
+      </div>`
+    :`<div class="info-box" style="margin-top:10px;">Log in om deze kat te claimen.</div>`;
+  document.getElementById('mystery-modal-body').innerHTML=`
+    ${photoHtml}
+    <div style="font-size:0.8rem;color:var(--mid);margin-bottom:4px;">📍 ${s.location}</div>
+    <div style="font-size:0.8rem;color:var(--mid);margin-bottom:4px;">🕐 ${fmt(s.time||s.spotted_at)}</div>
+    ${s.notes?`<div style="font-size:0.85rem;font-style:italic;margin-bottom:4px;">"${s.notes}"</div>`:''}
+    <div style="font-size:0.78rem;color:var(--mid);">Gespot door: ${s.reporter||'Anoniem'}</div>
+    ${claimBtns}`;
+  openModal('mystery-modal');
 }
 
 // MOBILE SIDEBAR TOGGLE (kept for desktop)
