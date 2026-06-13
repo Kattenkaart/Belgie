@@ -2849,7 +2849,7 @@ async function openMysteryPanel(s){
               ${c.emoji||'🐱'} ${c.name} (${prob}%)
             </button>`;
           }).join('')}
-          <button class="btn btn-outline btn-sm" onclick="closeModal('mystery-modal')">Niet mijn kat</button>
+          <button class="btn btn-outline btn-sm" onclick="notMyCats('${s.id}','um-${s.id}');closeModal('mystery-modal')">Niet mijn kat(ten)</button>
         </div>
       </div>`
     :`<div class="info-box" style="margin-top:10px;">Log in om deze kat te claimen.</div>`;
