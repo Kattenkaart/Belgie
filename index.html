@@ -633,6 +633,17 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
 
 <div class="toast" id="toast"></div>
 
+<!-- CAT SIGHTINGS MODAL -->
+<div class="modal-overlay" id="cat-sightings-modal">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <div class="modal-title" id="cat-sightings-title">Spottings</div>
+      <button class="modal-close" onclick="closeModal('cat-sightings-modal')">✕</button>
+    </div>
+    <div class="modal-body" id="cat-sightings-body"></div>
+  </div>
+</div>
+
 <!-- SPOTTER PROFILE MODAL -->
 <div class="modal-overlay" id="spotter-modal">
   <div class="modal" style="max-width:480px;">
@@ -1313,7 +1324,9 @@ function showDetail(catId){
   if(isOwn){metaParts.push(cat.address.split(',')[0]);}
   const n=sightings.filter(s=>s.catId===cat.id&&s.status==='confirmed').length;
   let btns=`<button class="btn btn-primary btn-sm" onclick="openSpotForCat('${cat.id}')">🐾 Gespot!</button>`;
-  btns+=`<span style="font-size:0.74rem;color:var(--mid);align-self:center">${n} bevestigd${n!==1?'e':''} spot${n!==1?'s':''}</span>`;
+  btns+=`<button class="btn btn-outline btn-sm" onclick="openCatSightings('${cat.id}')" style="font-size:0.75rem;">
+    📍 ${n} spot${n!==1?'s':''}
+  </button>`;
   if(!isOwn)btns+=`<button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="openReportModal('${cat.id}')">🚩 Melden</button>`;
   if(isOwn){
     btns+=`<button class="btn btn-outline btn-sm" onclick="openEditCat('${cat.id}')">✏️ Bewerken</button>`;
@@ -2912,6 +2925,38 @@ function openSpotterProfile(){
     </div>`:'<div class="empty-state" style="padding:16px 0;"><div class="big-icon">🔍</div>Nog geen bevestigde spottings.</div>'}
   `;
   openModal('spotter-modal');
+}
+
+// CAT SIGHTINGS
+function openCatSightings(catId){
+  const cat=cats.find(c=>c.id===catId);
+  if(!cat)return;
+  const isOwn=me&&cat.owner===me.id;
+  const spots=sightings
+    .filter(s=>s.catId===catId&&s.status==='confirmed')
+    .sort((a,b)=>new Date(b.time)-new Date(a.time));
+  document.getElementById('cat-sightings-title').textContent=`📍 Spottings van ${cat.name}`;
+  if(!spots.length){
+    document.getElementById('cat-sightings-body').innerHTML=
+      `<div class="empty-state"><div class="big-icon">📍</div>Nog geen bevestigde spottings.</div>`;
+  } else {
+    document.getElementById('cat-sightings-body').innerHTML=spots.map(s=>`
+      <div class="sighting-card" style="margin-bottom:10px;">
+        <div class="sighting-header">
+          <div class="sighting-cat">${s.reporter||'Anoniem'}</div>
+          <div class="sighting-time">${fmt(s.time)}</div>
+        </div>
+        <div style="color:var(--mid);font-size:0.8rem;">📍 ${s.location}</div>
+        ${s.notes?`<div style="font-size:0.78rem;font-style:italic;color:var(--mid);">"${s.notes}"</div>`:''}
+        ${s.photo?`<img src="${s.photo}" data-fs="${s.photo}" onclick="openPhotoFullscreen(this.dataset.fs)"
+          class="sighting-photo" style="cursor:pointer;">`:''}
+        ${isOwn?`<div style="margin-top:6px;">
+          <button class="btn btn-sm" style="background:#fde8e8;color:#9b2020"
+            onclick="confirmDeleteSighting('${s.id}');closeModal('cat-sightings-modal')">🗑️ Verwijderen</button>
+        </div>`:''}
+      </div>`).join('');
+  }
+  openModal('cat-sightings-modal');
 }
 
 // MYSTERY CAT PANEL
