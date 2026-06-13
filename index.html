@@ -1203,11 +1203,12 @@ function renderAlerts(){
   // Sighting + found notifications only for own cats when logged in
   const myCatIds=me?cats.filter(c=>c.owner===me.id).map(c=>c.id):[];
   const filteredNotifs=notifs.filter(n=>{
-    if(n.type==='info')return true; // welcome message always visible
-    if(n.type==='lost')return false; // handled by lostAlerts above, no duplicates
+    if(n.type==='info')return true;
+    if(n.type==='lost')return false;
     if(n.type==='found')return me&&myCatIds.includes(n.catId);
     if(n.type==='sighting')return me&&myCatIds.includes(n.catId);
-    return me; // other notifs only when logged in
+    if(n.type==='unmatched')return me&&(!n.ownerId||n.ownerId===me.id);
+    return false;
   });
   const all=[...lostAlerts,...filteredNotifs].slice(0,25);
   if(!all.length){el.innerHTML=`<div class="empty-state"><div class="big-icon">🔔</div>Geen meldingen.</div>`;return;}
@@ -2600,7 +2601,7 @@ function buildAlertsHTML(){
   return all.map(n=>`<div class="notif-item${n.unread?' unread':''}" style="margin-bottom:8px;">
     <div class="notif-title">${n.title}</div>
     <div style="font-size:0.77rem;margin-top:2px">${n.body}</div>
-    ${n.photo?`<img src="${n.photo}" style="width:100%;max-height:100px;object-fit:cover;border-radius:8px;margin-top:5px;">`:''}
+    ${n.photo?`<img src="${n.photo}" data-fs="${n.photo}" onclick="openPhotoFullscreen(this.dataset.fs)" style="width:100%;max-height:120px;object-fit:cover;border-radius:8px;margin-top:5px;cursor:pointer;">`:''}
     ${n.type==='lost'?`<button class="btn btn-primary btn-sm" style="margin-top:7px" onclick="openSpotForCat('${n.catId}');closeMobileSheet()">🐾 Gezien!</button>`:''}
     ${n.type==='unmatched'?`<div style="margin-top:7px;">
       <div style="font-size:0.74rem;color:var(--mid);margin-bottom:5px;">Is het een van jouw katten?</div>
