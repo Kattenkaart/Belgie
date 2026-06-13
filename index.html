@@ -297,6 +297,7 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
   border-radius:50%;width:18px;height:18px;font-size:0.65rem;font-weight:700;
   display:flex;align-items:center;justify-content:center;border:2px solid white;}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 </head>
 <body>
 <header>
@@ -1850,16 +1851,29 @@ function switchTab(tab){
   if(tab==='alerts')notifs.forEach(n=>n.unread=false);
   updateBadges();
 }
-function prevImg(input,prevId){
+async function prevImg(input,prevId){
   const p=document.getElementById(prevId);
   if(input.files&&input.files[0]){
-    const file=input.files[0];
+    let file=input.files[0];
+    // Convert HEIC to JPG for browser compatibility
+    if(file.type==='image/heic'||file.type==='image/heif'||file.name.toLowerCase().endsWith('.heic')||file.name.toLowerCase().endsWith('.heif')){
+      try{
+        toast('Foto converteren...');
+        const blob=await heic2any({blob:file,toType:'image/jpeg',quality:0.85});
+        file=new File([blob],file.name.replace(/\.heic$/i,'.jpg').replace(/\.heif$/i,'.jpg'),{type:'image/jpeg'});
+        toast('Foto klaar! ✓');
+      }catch(e){
+        console.warn('HEIC conversion failed:',e);
+        toast('Gebruik bij voorkeur een JPG of PNG foto.',true);
+      }
+    }
     // Store file for upload
     if(prevId==='f-prev')pendingMainPhoto=file;
     else if(prevId==='sp-prev')pendingSpotPhoto=file;
-    // Show preview using object URL (no base64, much faster)
+    // Show preview
     const url=URL.createObjectURL(file);
     p.src=url; p.style.display='block';
+    if(prevId==='sp-prev')updateSpotPhotoHint();
   }
 }
 function toast(msg,err=false){const el=document.getElementById('toast');el.textContent=msg;el.className='toast'+(err?' error':'');el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3600);}
