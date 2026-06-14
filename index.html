@@ -2061,19 +2061,93 @@ document.addEventListener('click',e=>{
   const pill=document.getElementById('user-pill');
   if(menu&&!menu.contains(e.target)&&!pill.contains(e.target))menu.classList.remove('open');
 });
+// DATA PROCESSORS
+function processCatsData(data){
+  if(!data?.length)return;
+  const existingIds=new Set(cats.map(c=>c.id));
+  const newCats=data
+    .filter(r=>!existingIds.has(r.id))
+    .map(r=>({
+      id:r.id,name:r.name,address:r.address||'',breed:r.breed||'',bio:r.bio||'',
+      email:r.email||'',owner:r.owner_id,photo:r.photo||null,
+      emoji:r.emoji||breedEmoji(r.breed),
+      thumbPos:r.thumb_pos||'center top',
+      birthdate:r.birthdate||null,
+      extraPhotos:r.extra_photos?tryParse(r.extra_photos):[],
+      lat:parseFloat(r.lat)||0,lng:parseFloat(r.lng)||0,
+      lost:r.lost||false,addrOk:r.addr_ok||false
+    }));
+  cats=[...cats,...newCats];
+  // Update existing cats
+  data.forEach(r=>{
+    const existing=cats.find(c=>c.id===r.id);
+    if(existing){
+      Object.assign(existing,{
+        name:r.name,address:r.address||'',breed:r.breed||'',bio:r.bio||'',
+        photo:r.photo||null,emoji:r.emoji||breedEmoji(r.breed),
+        thumbPos:r.thumb_pos||'center top',birthdate:r.birthdate||null,
+        extraPhotos:r.extra_photos?tryParse(r.extra_photos):[],
+        lat:parseFloat(r.lat)||0,lng:parseFloat(r.lng)||0,
+        lost:r.lost||false,addrOk:r.addr_ok||false
+      });
+    }
+  });
+}
+
+function processSightingsData(data){
+  if(!data?.length)return;
+  const existingIds=new Set(sightings.map(s=>s.id));
+  const newSightings=data
+    .filter(r=>!existingIds.has(r.id))
+    .map(r=>({
+      id:r.id,catId:r.cat_id,location:r.location,lat:r.lat,lng:r.lng,
+      time:r.spotted_at,notes:r.notes,photo:r.photo,status:r.status,
+      reporter:r.reporter,reporterId:r.reporter_id
+    }));
+  sightings=[...sightings,...newSightings];
+}
+
 // Supabase scheduled job (run monthly via Dashboard > Database > Extensions > pg_cron):
 // SELECT cron.schedule('cleanup-old-sightings','0 0 1 * *',
 //   $$DELETE FROM sightings WHERE status='unmatched' AND created_at < NOW() - INTERVAL '6 months'$$);
 async function loadFromSupabase(){
   try{
-    const [u,c,s]=await Promise.all([
-      sb.from('users').select('*'),
-      sb.from('cats').select('*'),
-      sb.from('sightings').select('*')
-    ]);
+    // Phase 1: load users first (needed for login)
+    const u=await sb.from('users').select('*');
     if(u.error)console.error('Users error:',u.error.message);
-    if(c.error)console.error('Cats error:',c.error.message);
+    if(u.data?.length)users=u.data.map(r=>({id:r.id,name:r.name,pin:r.pin,email:r.email||'',cats:[]}));
+
+    // Phase 2: load nearby cats first if we have location, then all
+    const lat=currentLat||OUD[0], lng=currentLng||OUD[1];
+    const nearby=0.0045; // ~500m in degrees
+    const [cNearby,s]=await Promise.all([
+      sb.from('cats').select('*')
+        .gte('lat', lat-nearby*3).lte('lat', lat+nearby*3)
+        .gte('lng', lng-nearby*3).lte('lng', lng+nearby*3),
+      sb.from('sightings').select('*').order('spotted_at',{ascending:false}).limit(200)
+    ]);
+    if(cNearby.error)console.error('Cats error:',cNearby.error.message);
     if(s.error)console.error('Sightings error:',s.error.message);
+
+    // Fake c object for rest of function
+    const c=cNearby;
+    // Render immediately with nearby cats
+    if(c.data?.length||s.data?.length){
+      processCatsData(c.data||[]);
+      processSightingsData(s.data||[]);
+      renderAll();
+    }
+
+    // Phase 3: load all cats in background
+    setTimeout(async()=>{
+      const cAll=await sb.from('cats').select('*');
+      if(cAll.data?.length){
+        processCatsData(cAll.data);
+        renderAll();
+      }
+    }, 100);
+
+
     if(u.data?.length)users=u.data.map(r=>({id:r.id,name:r.name,pin:r.pin,email:r.email||'',cats:[]}));
     if(c.data?.length)cats=c.data.map(r=>({
       id:r.id,name:r.name,address:r.address||'',breed:r.breed||'',bio:r.bio||'',
