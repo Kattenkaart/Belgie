@@ -1908,8 +1908,13 @@ async function tryLogin(){
   const errEl=document.getElementById('login-error');
   errEl.textContent='';
   if(!name||!password){errEl.textContent='Vul naam en wachtwoord in.';return;}
+  // If users not loaded yet, try reloading from Supabase
+  if(!users.length){
+    errEl.textContent='⏳ Verbinding maken...';
+    await loadFromSupabase();
+  }
   const u=users.find(u=>u.name.toLowerCase()===name);
-  if(!u){errEl.textContent='Gebruiker niet gevonden.';return;}
+  if(!u){errEl.textContent='Gebruiker niet gevonden. Controleer je naam of probeer opnieuw.';return;}
   const ok=await verifyPassword(password,u.pin);
   if(ok){
     // Migrate legacy PIN to hashed password
@@ -2097,7 +2102,14 @@ async function loadFromSupabase(){
 window.onload=async()=>{
   initCookieBanner();
   initMap();
-  await loadFromSupabase();
+  // Show subtle loading state
+  const loginBtn=document.querySelector('.header-right .btn');
+  try{
+    await loadFromSupabase();
+  }catch(e){
+    console.error('Failed to load data:',e);
+    toast('Verbindingsprobleem — probeer de pagina te herladen.',true);
+  }
   // Laad uitgesloten spottings
   loadOwnerExcluded();
   // Sessie herstellen van localStorage
