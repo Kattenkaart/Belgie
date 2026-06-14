@@ -1986,6 +1986,25 @@ function switchTab(tab){
   if(tab==='alerts')notifs.forEach(n=>n.unread=false);
   updateBadges();
 }
+async function compressImage(file, maxW=800, quality=0.75){
+  return new Promise(resolve=>{
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      const scale=Math.min(1, maxW/Math.max(img.width,img.height));
+      const w=Math.round(img.width*scale), h=Math.round(img.height*scale);
+      const canvas=document.createElement('canvas');
+      canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      canvas.toBlob(blob=>{
+        resolve(new File([blob], file.name.replace(/\.[^.]+$/,'.jpg'), {type:'image/jpeg'}));
+      },'image/jpeg', quality);
+    };
+    img.src=url;
+  });
+}
+
 async function prevImg(input,prevId){
   const p=document.getElementById(prevId);
   if(input.files&&input.files[0]){
@@ -1996,18 +2015,24 @@ async function prevImg(input,prevId){
       input.value='';
       return;
     }
-    // Convert HEIC to JPG for browser compatibility
+    // Convert HEIC to JPG
     if(file.type==='image/heic'||file.type==='image/heif'||file.name.toLowerCase().endsWith('.heic')||file.name.toLowerCase().endsWith('.heif')){
       try{
         toast('Foto converteren...');
-        const blob=await heic2any({blob:file,toType:'image/jpeg',quality:0.85});
+        const blob=await heic2any({blob:file,toType:'image/jpeg',quality:0.8});
         file=new File([blob],file.name.replace(/\.heic$/i,'.jpg').replace(/\.heif$/i,'.jpg'),{type:'image/jpeg'});
-        toast('Foto klaar! ✓');
       }catch(e){
         console.warn('HEIC conversion failed:',e);
         toast('Gebruik bij voorkeur een JPG of PNG foto.',true);
       }
     }
+    // Compress image — max 800px, 75% quality → ~80% smaller
+    try{
+      const before=file.size;
+      file=await compressImage(file, 800, 0.75);
+      const after=file.size;
+      console.info(`Compressed: ${(before/1024).toFixed(0)}KB → ${(after/1024).toFixed(0)}KB`);
+    }catch(e){console.warn('Compression failed:',e);}
     // Store file for upload
     if(prevId==='f-prev')pendingMainPhoto=file;
     else if(prevId==='sp-prev')pendingSpotPhoto=file;
