@@ -2113,7 +2113,8 @@ function processSightingsData(data){
 //   $$DELETE FROM sightings WHERE status='unmatched' AND created_at < NOW() - INTERVAL '6 months'$$);
 async function loadFromSupabase(){
   window.catsLoading=true;
-  document.getElementById('map-loading').style.display='block';
+  const mapLoading=document.getElementById('map-loading');
+  if(mapLoading)mapLoading.style.display='block';
   try{
     // Phase 1: load users first (needed for login)
     const u=await sb.from('users').select('*');
@@ -2136,7 +2137,7 @@ async function loadFromSupabase(){
     const c=cNearby;
     // Render immediately with nearby cats
     window.catsLoading=false;
-    document.getElementById('map-loading').style.display='none';
+    const ml=document.getElementById('map-loading');if(ml)ml.style.display='none';
     if(c.data?.length||s.data?.length){
       processCatsData(c.data||[]);
       processSightingsData(s.data||[]);
@@ -3300,25 +3301,24 @@ window.addEventListener('error', function(e){
       message: e.message||'Unknown error',
       source: e.filename||'',
       line: e.lineno||0,
-      user: me?.name||'Anoniem',
+      user_name: me?.name||'Anoniem',
       url: window.location.href,
-      user_agent: navigator.userAgent.substring(0,200),
-      created_at: new Date().toISOString()
-    }).then(()=>{});
+      user_agent: navigator.userAgent.substring(0,200)
+    }).then(r=>{if(r.error&&r.error.code==='42P01')console.info('error_logs tabel bestaat nog niet');});
   }catch(err){}
 });
 
 window.addEventListener('unhandledrejection', function(e){
+  if(String(e.reason).includes('error_logs'))return; // avoid infinite loop
   try{
     sb.from('error_logs').insert({
       message: 'Unhandled promise: '+(e.reason?.message||String(e.reason)||'Unknown'),
       source: 'promise',
       line: 0,
-      user: me?.name||'Anoniem',
+      user_name: me?.name||'Anoniem',
       url: window.location.href,
-      user_agent: navigator.userAgent.substring(0,200),
-      created_at: new Date().toISOString()
-    }).then(()=>{});
+      user_agent: navigator.userAgent.substring(0,200)
+    }).then(r=>{if(r.error&&r.error.code==='42P01')console.info('error_logs tabel bestaat nog niet');});
   }catch(err){}
 });
 
@@ -3333,15 +3333,15 @@ async function submitFeedback(){
   const text=document.getElementById('feedback-text').value.trim();
   if(!text){toast('Beschrijf het probleem eerst.',true);return;}
   const name=document.getElementById('feedback-name').value.trim()||'Anoniem';
-  await sb.from('error_logs').insert({
+  const {error:fbErr}=await sb.from('error_logs').insert({
     message:'[FEEDBACK] '+text,
     source:'user_feedback',
     line:0,
-    user:name,
+    user_name:name,
     url:window.location.href,
-    user_agent:navigator.userAgent.substring(0,200),
-    created_at:new Date().toISOString()
+    user_agent:navigator.userAgent.substring(0,200)
   });
+  if(fbErr){toast('Fout bij versturen. Probeer via GitHub Issues.',true);return;}
   closeModal('feedback-modal');
   toast('Bedankt voor je feedback! 🙏');
 }
