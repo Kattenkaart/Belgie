@@ -2525,20 +2525,22 @@ function selectThumbPos(el){
 async function uploadPhoto(file, folder='cats'){
   if(!file)return null;
   try{
-    const ext=(file.name||'photo.jpg').split('.').pop()||'jpg';
+    const ext='jpg'; // always jpg after compression
     const filename=`${folder}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
     const {data,error}=await sb.storage.from('cat-photos').upload(filename, file, {
-      cacheControl:'3600', upsert:false, contentType:file.type||'image/jpeg'
+      cacheControl:'3600', upsert:false, contentType:'image/jpeg'
     });
     if(error){
-      console.warn('Storage upload failed, using base64 fallback:', error.message);
-      return await fileToBase64(file);
+      toast('Foto upload mislukt: '+error.message,true);
+      console.error('Storage upload failed:', error);
+      return null;
     }
     const {data:{publicUrl}}=sb.storage.from('cat-photos').getPublicUrl(filename);
     return publicUrl;
   }catch(e){
-    console.warn('Storage unavailable, using base64 fallback:', e);
-    return await fileToBase64(file);
+    toast('Foto upload mislukt. Controleer je verbinding.',true);
+    console.error('Storage error:', e);
+    return null;
   }
 }
 
