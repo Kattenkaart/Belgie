@@ -361,6 +361,8 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
       </div>
     </div>
     <div id="map"></div>
+    <div id="map-loading" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(255,255,255,0.92);border-radius:16px;padding:18px 28px;z-index:900;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.15);pointer-events:none;"><div style="font-size:2.2rem;animation:catSpin 0.8s ease-in-out infinite;">🐱</div><div style="font-size:0.82rem;color:var(--mid);margin-top:8px;font-weight:600;">Katten laden...</div></div>
+    <button id="gps-fab" onclick="centerOnMe()" title="Ga naar mijn locatie" style="position:absolute;bottom:80px;right:12px;z-index:450;width:42px;height:42px;border-radius:50%;background:white;border:none;box-shadow:0 2px 10px rgba(0,0,0,0.2);cursor:pointer;font-size:1.2rem;">📍</button>
     <div class="cat-detail" id="cat-detail">
       <button class="detail-close" onclick="closeDetail()">✕</button>
       <div class="detail-name" id="detail-name"></div>
@@ -2154,28 +2156,11 @@ async function loadFromSupabase(){
     }, 100);
 
 
-    if(u.data?.length)users=u.data.map(r=>({id:r.id,name:r.name,pin:r.pin,email:r.email||'',cats:[]}));
-    if(c.data?.length)cats=c.data.map(r=>({
-      id:r.id,name:r.name,address:r.address||'',breed:r.breed||'',bio:r.bio||'',
-      email:r.email||'',owner:r.owner_id,photo:r.photo||null,
-      emoji:r.emoji||breedEmoji(r.breed),
-      thumbPos:r.thumb_pos||'center top',
-      birthdate:r.birthdate||null,
-      extraPhotos:r.extra_photos?tryParse(r.extra_photos):[],
-      lat:parseFloat(r.lat)||0,lng:parseFloat(r.lng)||0,
-      lost:r.lost||false,addrOk:r.addr_ok||false
-    }));
-    if(s.data?.length)sightings=s.data.map(r=>({
-      id:r.id,catId:r.cat_id,location:r.location,lat:r.lat,lng:r.lng,
-      time:r.spotted_at,notes:r.notes,photo:r.photo,status:r.status,
-      reporter:r.reporter,reporterId:r.reporter_id
-    }));
-    // Realtime: herlaad data bij wijzigingen van andere gebruikers
+    // Realtime updates
     sb.channel('live')
       .on('postgres_changes',{event:'*',schema:'public',table:'cats'},()=>loadFromSupabase())
       .on('postgres_changes',{event:'*',schema:'public',table:'sightings'},()=>loadFromSupabase())
       .subscribe();
-    renderAll();
   }catch(e){console.error('Supabase laad fout:',e);renderAll();}
 }
 
