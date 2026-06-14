@@ -1162,13 +1162,6 @@ function catCardHtml(cat, isOwn){
 
 function renderCatsList(){
   const el=document.getElementById('cats-list');
-  if(window.catsLoading){
-    el.innerHTML=`<div style="text-align:center;padding:24px 0;color:var(--mid);">
-      <div style="font-size:2rem;animation:catSpin 1s linear infinite;display:inline-block;">🐱</div>
-      <div style="font-size:0.82rem;margin-top:10px;">Katten laden...</div>
-    </div>`;
-    return;
-  }
   if(!cats.length){
     el.innerHTML=`<div class="empty-state"><div class="big-icon">🐾</div>Nog geen katten geregistreerd.</div>`;
     return;
@@ -2120,7 +2113,7 @@ function processSightingsData(data){
 //   $$DELETE FROM sightings WHERE status='unmatched' AND created_at < NOW() - INTERVAL '6 months'$$);
 async function loadFromSupabase(){
   window.catsLoading=true;
-  renderCatsList();
+  document.getElementById('map-loading').style.display='block';
   try{
     // Phase 1: load users first (needed for login)
     const u=await sb.from('users').select('*');
@@ -2143,6 +2136,7 @@ async function loadFromSupabase(){
     const c=cNearby;
     // Render immediately with nearby cats
     window.catsLoading=false;
+    document.getElementById('map-loading').style.display='none';
     if(c.data?.length||s.data?.length){
       processCatsData(c.data||[]);
       processSightingsData(s.data||[]);
@@ -2814,10 +2808,6 @@ function closeMobileSheet(){
 }
 
 function buildCatsHTML(){
-  if(window.catsLoading)return`<div style="text-align:center;padding:20px 0;color:var(--mid);">
-    <div style="font-size:2rem;animation:catSpin 1s linear infinite;display:inline-block;">🐱</div>
-    <div style="font-size:0.82rem;margin-top:8px;">Katten laden...</div>
-  </div>`;
   const userLat=currentLat,userLng=currentLng;
   const myCats=me?cats.filter(c=>c.owner===me.id):[];
   const myCatIds=myCats.map(c=>c.id);
