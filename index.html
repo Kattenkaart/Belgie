@@ -3367,13 +3367,15 @@ if(window.innerWidth<=700){
 
 // EXTRA PHOTOS
 let currentExtraPhotos=[];
-function addExtraPhotos(input){
+async function addExtraPhotos(input){
   const files=Array.from(input.files);
   const remaining=3-pendingExtraPhotos.length;
   if(remaining<=0){toast('Maximum 3 extra fotos bereikt.',true);return;}
   const tooBig=files.find(f=>f.size>5*1024*1024);
   if(tooBig){toast('Een of meer fotos zijn te groot (max. 5MB per foto).',true);input.value='';return;}
-  files.slice(0,remaining).forEach(file=>{
+  toast('Fotos verwerken...');
+  const compressed=await Promise.all(files.slice(0,remaining).map(f=>compressImage(f,800,0.75)));
+  compressed.forEach(file=>{
     pendingExtraPhotos.push(file);
     // Preview with object URL
     currentExtraPhotos.push(URL.createObjectURL(file));
