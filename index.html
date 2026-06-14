@@ -872,6 +872,7 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
   <div class="user-menu-item" onclick="openProfileModal()">✏️ Profiel bewerken</div>
   <div class="user-menu-item" onclick="openModal('over-modal');document.getElementById('user-menu').classList.remove('open')">ℹ️ Over KattenKaart</div>
   <div class="user-menu-item" onclick="openFeedback()">🐛 Probleem melden</div>
+  <div class="user-menu-item" onclick="loadFromSupabase(true);document.getElementById('user-menu').classList.remove('open');toast('Gegevens worden herladen...')">🔄 Herlaad gegevens</div>
   <div class="user-menu-item" onclick="openPrivacy()">🔒 Privacybeleid</div>
   <div class="user-menu-item danger" onclick="openModal('delete-account-modal');document.getElementById('user-menu').classList.remove('open')">🗑️ Account verwijderen</div>
   <div class="user-menu-item danger" onclick="doLogout()">🚪 Uitloggen</div>
@@ -1870,6 +1871,7 @@ async function saveCat(){
   }
   editCatId=null;closeModal('add-cat-modal');clearCatForm();renderAll();
   if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='Kat opslaan';}
+  try{localStorage.removeItem('kk_cats');}catch(e){} // invalidate cache
 }
 function kpress(k,pref){
   if(pref==='lk'){
@@ -2116,50 +2118,86 @@ function processSightingsData(data){
 // Supabase scheduled job (run monthly via Dashboard > Database > Extensions > pg_cron):
 // SELECT cron.schedule('cleanup-old-sightings','0 0 1 * *',
 //   $$DELETE FROM sightings WHERE status='unmatched' AND created_at < NOW() - INTERVAL '6 months'$$);
-async function loadFromSupabase(){
+const CACHE_TTL_CATS = 10 * 60 * 1000; // 10 min — katten veranderen zelden
+const CACHE_TTL_SIGHTINGS = 60 * 1000;  // 1 min — spottings veranderen vaak
+const CACHE_TTL = 5 * 60 * 1000;        // default 5 min (users)
+
+function saveCache(key, data){
+  try{localStorage.setItem(key, JSON.stringify({data, ts: Date.now()}));}catch(e){}
+}
+function loadCache(key, ttl=CACHE_TTL){
+  try{
+    const c=JSON.parse(localStorage.getItem(key)||'null');
+    if(c && Date.now()-c.ts < ttl) return c.data;
+  }catch(e){}
+  return null;
+}
+
+async function loadFromSupabase(forceRefresh=false){
   window.catsLoading=true;
   const mapLoading=document.getElementById('map-loading');
   if(mapLoading)mapLoading.style.display='block';
   try{
-    // Phase 1: load users first (needed for login)
-    const u=await sb.from('users').select('*');
-    if(u.error)console.error('Users error:',u.error.message);
-    if(u.data?.length)users=u.data.map(r=>({id:r.id,name:r.name,pin:r.pin,email:r.email||'',cats:[]}));
+    // Phase 1: users (try cache first)
+    const cachedUsers=!forceRefresh&&loadCache('kk_users', CACHE_TTL);
+    if(cachedUsers){
+      users=cachedUsers;
+    } else {
+      const u=await sb.from('users').select('*');
+      if(u.error)console.error('Users error:',u.error.message);
+      if(u.data?.length){
+        users=u.data.map(r=>({id:r.id,name:r.name,pin:r.pin,email:r.email||'',cats:[]}));
+        saveCache('kk_users', users);
+      }
+    }
 
-    // Phase 2: load nearby cats first (~4.5km radius), show immediately
-    const lat=currentLat||OUD[0], lng=currentLng||OUD[1];
-    const r=0.04; // ~4.5km
-    const cNearby=await sb.from('cats').select('*')
-      .gte('lat',lat-r).lte('lat',lat+r)
-      .gte('lng',lng-r).lte('lng',lng+r);
-    if(cNearby.error)console.error('Cats error:',cNearby.error.message);
-    if(cNearby.data?.length)processCatsData(cNearby.data);
-    window.catsLoading=false;
-    const ml=document.getElementById('map-loading');if(ml)ml.style.display='none';
-    renderAll(); // Show nearby cats immediately
+    // Phase 2: cats — try cache first
+    const cachedCats=!forceRefresh&&loadCache('kk_cats', CACHE_TTL_CATS);
+    if(cachedCats){
+      processCatsData(cachedCats);
+      window.catsLoading=false;
+      const ml=document.getElementById('map-loading');if(ml)ml.style.display='none';
+      renderAll();
+    } else {
+      // Load nearby first for fast display
+      const lat=currentLat||OUD[0], lng=currentLng||OUD[1];
+      const r=0.04;
+      const cNearby=await sb.from('cats').select('*')
+        .gte('lat',lat-r).lte('lat',lat+r)
+        .gte('lng',lng-r).lte('lng',lng+r);
+      if(cNearby.data?.length)processCatsData(cNearby.data);
+      window.catsLoading=false;
+      const ml=document.getElementById('map-loading');if(ml)ml.style.display='none';
+      renderAll();
+      // Load all cats in background
+      const mlMini=document.getElementById('map-loading-mini');
+      if(mlMini)mlMini.style.display='flex';
+      const cAll=await sb.from('cats').select('*');
+      if(cAll.data?.length){
+        processCatsData(cAll.data);
+        saveCache('kk_cats', cAll.data);
+      }
+      if(mlMini)mlMini.style.display='none';
+      renderAll();
+    }
 
-    // Show mini indicator for background loading
-    const mlMini=document.getElementById('map-loading-mini');
-    if(mlMini){mlMini.querySelector('span+*')||
-      (mlMini.lastChild.textContent=' Meer katten laden...');
-      mlMini.style.display='flex';}
-
-    // Phase 3: load ALL cats + sightings in parallel
-    const [cAll,s]=await Promise.all([
-      sb.from('cats').select('*'),
-      sb.from('sightings').select('*').order('spotted_at',{ascending:false}).limit(200)
-    ]);
-    if(cAll.data?.length)processCatsData(cAll.data);
-    if(s.data?.length)processSightingsData(s.data);
-    if(mlMini)mlMini.style.display='none';
-    renderAll(); // Full update
+    // Phase 3: sightings — try cache first
+    const cachedSightings=!forceRefresh&&loadCache('kk_sightings', CACHE_TTL_SIGHTINGS);
+    if(cachedSightings){
+      processSightingsData(cachedSightings);
+      renderAll();
+    } else {
+      const s=await sb.from('sightings').select('*').order('spotted_at',{ascending:false}).limit(200);
+      if(s.data?.length){
+        processSightingsData(s.data);
+        saveCache('kk_sightings', s.data);
+        renderAll();
+      }
+    }
 
 
-    // Realtime updates
-    sb.channel('live')
-      .on('postgres_changes',{event:'*',schema:'public',table:'cats'},()=>loadFromSupabase())
-      .on('postgres_changes',{event:'*',schema:'public',table:'sightings'},()=>loadFromSupabase())
-      .subscribe();
+    // Realtime disabled — gebruik handmatige refresh om egress te sparen
+    // sb.channel('live').on(...).subscribe();
   }catch(e){console.error('Supabase laad fout:',e);renderAll();}
 }
 
