@@ -3347,6 +3347,19 @@ function observeLazyImgs(){
   document.querySelectorAll('img[data-src]').forEach(img=>imgObserver.observe(img));
 }
 
+// DELETE PHOTO FROM STORAGE
+async function deletePhotoFromStorage(url){
+  if(!url||url.startsWith('data:'))return; // skip base64
+  try{
+    // Extract path from URL: .../cat-photos/cats/filename.jpg → cats/filename.jpg
+    const marker='/cat-photos/';
+    const idx=url.indexOf(marker);
+    if(idx<0)return;
+    const path=url.slice(idx+marker.length);
+    await sb.storage.from('cat-photos').remove([path]);
+  }catch(e){console.warn('Could not delete photo from storage:',e);}
+}
+
 // MOBILE SIDEBAR TOGGLE (kept for desktop)
 function toggleSidebar(){
   if(isMobile())return;
