@@ -253,6 +253,7 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
 .toast{position:fixed;top:70px;right:14px;background:var(--forest);color:white;padding:10px 16px;border-radius:8px;font-size:0.81rem;font-weight:700;z-index:3000;box-shadow:var(--shadow);transform:translateX(130%);transition:transform 0.3s ease;max-width:270px;}
 .toast.show{transform:translateX(0);}.toast.error{background:var(--lost);}
 @keyframes lostpulse{0%,100%{opacity:1}50%{opacity:0.55}}
+@keyframes catSpin{0%{transform:rotate(0deg)}25%{transform:rotate(-20deg)}75%{transform:rotate(20deg)}100%{transform:rotate(0deg)}}
 .{animation:lostpulse 1.6s infinite;}
 .confirm-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:4000;align-items:center;justify-content:center;padding:20px;}
 .confirm-overlay.open{display:flex;}
@@ -1161,6 +1162,13 @@ function catCardHtml(cat, isOwn){
 
 function renderCatsList(){
   const el=document.getElementById('cats-list');
+  if(window.catsLoading){
+    el.innerHTML=`<div style="text-align:center;padding:24px 0;color:var(--mid);">
+      <div style="font-size:2rem;animation:catSpin 1s linear infinite;display:inline-block;">🐱</div>
+      <div style="font-size:0.82rem;margin-top:10px;">Katten laden...</div>
+    </div>`;
+    return;
+  }
   if(!cats.length){
     el.innerHTML=`<div class="empty-state"><div class="big-icon">🐾</div>Nog geen katten geregistreerd.</div>`;
     return;
@@ -2111,6 +2119,8 @@ function processSightingsData(data){
 // SELECT cron.schedule('cleanup-old-sightings','0 0 1 * *',
 //   $$DELETE FROM sightings WHERE status='unmatched' AND created_at < NOW() - INTERVAL '6 months'$$);
 async function loadFromSupabase(){
+  window.catsLoading=true;
+  renderCatsList();
   try{
     // Phase 1: load users first (needed for login)
     const u=await sb.from('users').select('*');
@@ -2132,11 +2142,12 @@ async function loadFromSupabase(){
     // Fake c object for rest of function
     const c=cNearby;
     // Render immediately with nearby cats
+    window.catsLoading=false;
     if(c.data?.length||s.data?.length){
       processCatsData(c.data||[]);
       processSightingsData(s.data||[]);
-      renderAll();
     }
+    renderAll();
 
     // Phase 3: load all cats in background
     setTimeout(async()=>{
@@ -2803,6 +2814,10 @@ function closeMobileSheet(){
 }
 
 function buildCatsHTML(){
+  if(window.catsLoading)return`<div style="text-align:center;padding:20px 0;color:var(--mid);">
+    <div style="font-size:2rem;animation:catSpin 1s linear infinite;display:inline-block;">🐱</div>
+    <div style="font-size:0.82rem;margin-top:8px;">Katten laden...</div>
+  </div>`;
   const userLat=currentLat,userLng=currentLng;
   const myCats=me?cats.filter(c=>c.owner===me.id):[];
   const myCatIds=myCats.map(c=>c.id);
