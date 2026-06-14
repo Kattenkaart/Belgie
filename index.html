@@ -2741,22 +2741,63 @@ function buildCatsHTML(){
 }
 
 function buildSightingsHTML(){
-  if(!me)return`<div class="empty-state"><div class="big-icon">🔐</div>Log in om spottings te zien.</div>`;
-  const myCatIds=cats.filter(c=>c.owner===me.id).map(c=>c.id);
-  const c=sightings.filter(s=>s.status==='confirmed'&&myCatIds.includes(s.catId));
-  if(!c.length)return`<div class="empty-state"><div class="big-icon">📍</div>Nog geen bevestigde spottings.</div>`;
-  return c.map(s=>{
-    const cat=cats.find(x=>x.id===s.catId);
-    return`<div class="sighting-card" style="margin-bottom:8px;">
-      <div class="sighting-header"><div class="sighting-cat">${cat?cat.name:'?'}</div><div class="sighting-time">${fmt(s.time)}</div></div>
-      <div style="color:var(--mid)">📍 ${s.location}</div>
-      ${s.notes?`<div style="font-size:0.75rem;color:var(--mid);font-style:italic">"${s.notes}"</div>`:''}
+  if(!me)return`<div class="empty-state"><div class="big-icon">🔐</div>Log in om je spottings te zien.</div>`;
+  const stats=getSpotterStats(me.id);
+  const mySpots=sightings
+    .filter(s=>s.reporterId===me.id&&s.status==='confirmed'&&s.catId)
+    .map(s=>({...s,cat:cats.find(c=>c.id===s.catId)}))
+    .filter(s=>s.cat)
+    .sort((a,b)=>new Date(b.time)-new Date(a.time));
+  const uniqueSpotted=[...new Map(mySpots.map(s=>[s.catId,s])).values()];
+  const myPending=sightings
+    .filter(s=>s.reporterId===me.id&&s.status==='pending'&&s.catId)
+    .map(s=>({...s,cat:cats.find(c=>c.id===s.catId)}))
+    .filter(s=>s.cat)
+    .sort((a,b)=>new Date(b.time)-new Date(a.time));
+  const myMystery=sightings
+    .filter(s=>s.reporterId===me.id&&s.status==='unmatched')
+    .sort((a,b)=>new Date(b.time)-new Date(a.time));
+  let html=`<div style="text-align:center;padding:6px 0 12px;border-bottom:1px solid var(--border);margin-bottom:10px;">
+    <div style="font-size:1.6rem;font-weight:700;color:var(--terracotta);">${stats.count}</div>
+    <div style="font-size:0.75rem;color:var(--mid);">spotting${stats.count!==1?'s':''} · ${stats.uniqueCats} unieke kat${stats.uniqueCats!==1?'ten':''}</div>
+  </div>`;
+  if(stats.badges.length)html+=`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px;">
+    ${stats.badges.map(b=>`<div style="background:var(--cream);border:1px solid var(--border);border-radius:7px;padding:4px 8px;font-size:0.72rem;">${b.icon} ${b.name}</div>`).join('')}</div>`;
+  if(myMystery.length){
+    html+=`<div class="section-label" style="margin-bottom:6px;">❓ Onbekende kat</div>`;
+    html+=myMystery.map(s=>`<div class="sighting-card" style="margin-bottom:8px;border-left:3px solid #7c5cbf;">
+      <div class="sighting-header"><div class="sighting-cat">❓ Onbekend</div><div class="sighting-time">${fmt(s.time)}</div></div>
+      <div style="color:var(--mid);font-size:0.78rem;">📍 ${s.location}</div>
       ${s.photo?`<img src="${s.photo}" class="sighting-photo">`:''}
-      <div class="sighting-actions">
-        <button class="btn btn-sm" style="background:#fef3cd;color:#856404" onclick="undoConfirmS('${s.id}')">↩ Ongedaan</button>
-        <button class="btn btn-sm" style="background:#fde8e8;color:#9b2020" onclick="confirmDeleteSighting('${s.id}')">🗑️</button>
-      </div></div>`;
-  }).join('');
+      <button class="btn btn-outline btn-sm" style="margin-top:5px;font-size:0.72rem;" onclick="openEditSighting('${s.id}')">✏️ Bewerken</button>
+    </div>`).join('');
+  }
+  if(myPending.length){
+    html+=`<div class="section-label" style="margin-bottom:6px;${myMystery.length?'margin-top:10px;':''}">⏳ Wacht op bevestiging</div>`;
+    html+=myPending.map(s=>`<div class="sighting-card" style="margin-bottom:8px;opacity:0.85;">
+      <div class="sighting-header"><div class="sighting-cat">${s.cat.emoji||'🐱'} ${s.cat.name}</div><div class="sighting-time">${fmt(s.time)}</div></div>
+      <div style="color:var(--mid);font-size:0.78rem;">📍 ${s.location}</div>
+      ${s.photo?`<img src="${s.photo}" class="sighting-photo">`:''}
+      <button class="btn btn-outline btn-sm" style="margin-top:5px;font-size:0.72rem;" onclick="openEditSighting('${s.id}')">✏️ Bewerken</button>
+    </div>`).join('');
+  }
+  if(!uniqueSpotted.length&&!myPending.length&&!myMystery.length){
+    html+=`<div class="empty-state"><div class="big-icon">🔍</div>Nog geen katten gespot!</div>`;
+  } else if(uniqueSpotted.length){
+    html+=`<div class="section-label" style="margin-bottom:6px;${(myPending.length||myMystery.length)?'margin-top:10px;':''}">✅ Bevestigd</div>`;
+    html+=uniqueSpotted.map(s=>`
+      <div class="cat-card" onclick="closeMobileSheet();showDetail('${s.catId}')">
+        <div class="cat-card-inner">
+          <div class="cat-card-thumb">${s.cat.photo?`<img src="${s.cat.photo}">`:(s.cat.emoji||'🐱')}</div>
+          <div class="cat-card-body">
+            <div class="cat-name">${s.cat.name}</div>
+            <div class="cat-meta">${s.cat.breed}</div>
+            <div style="font-size:0.7rem;color:var(--mid);">Gespot: ${fmt(s.time)}</div>
+          </div>
+        </div>
+      </div>`).join('');
+  }
+  return html;
 }
 
 function buildPendingHTML(){
