@@ -52,8 +52,6 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
   /* Show mobile nav */
   .leaflet-bottom{bottom:58px !important;z-index:500 !important;}
   .leaflet-bottom.leaflet-right{right:2px !important;}
-.leaflet-bottom{z-index:200 !important;}
-.leaflet-control-attribution{z-index:200 !important;}
   .mobile-nav{
     display:flex;position:fixed;bottom:0;left:0;right:0;
     background:var(--warm-white);border-top:1px solid var(--border);
@@ -184,9 +182,6 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
     border-radius:12px;padding:10px 16px;line-height:1.4;}
 }
 .cat-detail{display:none;position:absolute;bottom:0;left:0;right:0;background:var(--warm-white);border-top:1px solid var(--border);border-radius:14px 14px 0 0;padding:16px 18px;z-index:500;box-shadow:0 -4px 20px rgba(0,0,0,0.1);max-height:46%;overflow-y:auto;}
-.leaflet-bottom.leaflet-right{z-index:400 !important;}
-.cat-detail.open ~ * .leaflet-bottom,
-.leaflet-bottom{z-index:400 !important;}
 .cat-detail.open{display:block;}
 .detail-close{position:absolute;top:12px;right:13px;background:var(--border);border:none;border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:0.82rem;display:flex;align-items:center;justify-content:center;}
 .detail-name{font-family:'Playfair Display',serif;font-size:1.15rem;font-weight:700;display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
@@ -948,14 +943,6 @@ function initMap(){
   map=L.map('map',{zoomControl:!isMobile}).setView(OUD,13);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);
   map.on('click',onMapClick);
-  // Lower leaflet attribution z-index so detail panel covers it
-  map.on('load',()=>{});
-  setTimeout(()=>{
-    const attr=document.querySelector('.leaflet-control-attribution');
-    if(attr){attr.style.zIndex='50';attr.style.position='relative';}
-    const bottom=document.querySelector('.leaflet-bottom');
-    if(bottom){bottom.style.zIndex='50';}
-  },500);
   // Fix attribution position on mobile immediately
   setTimeout(()=>{
     if(window.innerWidth<=700){
@@ -1635,7 +1622,7 @@ async function submitSighting(){
         time:new Date().toISOString(),unread:true,type:'sighting',catId});
       // EMAIL HOOK — vervang door echte Supabase Edge Function call zodra live
       if(cat.email){
-        console.log(`[EMAIL] Naar: ${cat.email} — Onderwerp: ${cat.name} is gespot bij ${s.location}`);
+        // console.log(`[EMAIL]pot bij ${s.location}`);
         // Supabase voorbeeld (activeer als je live gaat):
         // fetch('https://JOUW-PROJECT.supabase.co/functions/v1/notify-sighting', {
         //   method:'POST', headers:{'Content-Type':'application/json'},
@@ -1880,19 +1867,6 @@ async function saveCat(){
   editCatId=null;closeModal('add-cat-modal');clearCatForm();renderAll();
   if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='Kat opslaan';}
 }
-
-// LOGIN / REGISTER
-function buildPinGrids(){
-  buildPG('pin-grid-login','lk');buildPG('pin-grid-reg','rk');
-}
-function buildPG(id,pref){
-  const g=document.getElementById(id);g.innerHTML='';
-  [1,2,3,4,5,6,7,8,9,'',0,'⌫'].forEach(k=>{
-    const d=document.createElement('div');d.className='pin-key';d.textContent=k;
-    if(k!=='')d.onclick=()=>kpress(k,pref);
-    g.appendChild(d);
-  });
-}
 function kpress(k,pref){
   if(pref==='lk'){
     if(k==='⌫')loginPin=loginPin.slice(0,-1);else if(loginPin.length<4)loginPin+=k;
@@ -2123,37 +2097,19 @@ async function loadFromSupabase(){
     if(u.error)console.error('Users error:',u.error.message);
     if(u.data?.length)users=u.data.map(r=>({id:r.id,name:r.name,pin:r.pin,email:r.email||'',cats:[]}));
 
-    // Phase 2: load nearby cats first if we have location, then all
-    const lat=currentLat||OUD[0], lng=currentLng||OUD[1];
-    const nearby=0.0045; // ~500m in degrees
-    const [cNearby,s]=await Promise.all([
-      sb.from('cats').select('*')
-        .gte('lat', lat-nearby*3).lte('lat', lat+nearby*3)
-        .gte('lng', lng-nearby*3).lte('lng', lng+nearby*3),
-      sb.from('sightings').select('*').order('spotted_at',{ascending:false}).limit(200)
-    ]);
-    if(cNearby.error)console.error('Cats error:',cNearby.error.message);
-    if(s.error)console.error('Sightings error:',s.error.message);
-
-    // Fake c object for rest of function
-    const c=cNearby;
-    // Render immediately with nearby cats
+    // Phase 2: load ALL cats first, show on map
+    const cAll=await sb.from('cats').select('*');
+    if(cAll.error)console.error('Cats error:',cAll.error.message);
+    if(cAll.data?.length)processCatsData(cAll.data);
     window.catsLoading=false;
     const ml=document.getElementById('map-loading');if(ml)ml.style.display='none';
-    if(c.data?.length||s.data?.length){
-      processCatsData(c.data||[]);
-      processSightingsData(s.data||[]);
-    }
-    renderAll();
+    renderAll(); // Show cats on map immediately
 
-    // Phase 3: load all cats in background
-    setTimeout(async()=>{
-      const cAll=await sb.from('cats').select('*');
-      if(cAll.data?.length){
-        processCatsData(cAll.data);
-        renderAll();
-      }
-    }, 100);
+    // Phase 3: load sightings in background
+    const s=await sb.from('sightings').select('*').order('spotted_at',{ascending:false}).limit(200);
+    if(s.error)console.error('Sightings error:',s.error.message);
+    if(s.data?.length)processSightingsData(s.data);
+    renderAll(); // Update with sightings
 
 
     // Realtime updates
@@ -2197,6 +2153,22 @@ window.onload=async()=>{
 };
 
 // GPS + NEARBY PANEL
+function centerOnMe(){
+  if(!navigator.geolocation){toast('GPS niet beschikbaar.',true);return;}
+  const btn=document.getElementById('gps-fab');
+  if(btn)btn.textContent='⏳';
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      const lat=pos.coords.latitude,lng=pos.coords.longitude;
+      currentLat=lat;currentLng=lng;
+      map.setView([lat,lng],16);
+      placeGPSDot(lat,lng);
+      if(btn)btn.textContent='📍';
+    },
+    ()=>{toast('Kon locatie niet ophalen.',true);if(btn)btn.textContent='📍';},
+    {enableHighAccuracy:true,timeout:8000}
+  );
+}
 let gpsMarker=null;
 
 function openNearby(){
@@ -2374,17 +2346,6 @@ async function deleteCat(catId){
 }
 
 // UNDO / DELETE SIGHTING
-async function undoConfirmS(id){
-  const s=sightings.find(x=>x.id===id);if(!s)return;
-  showConfirm('↩','Spotting terugzetten?',
-    'De spotting wordt teruggezet naar "in behandeling" en het territorium wordt aangepast.',
-    'Ja, terugzetten','btn-outline btn-forest',async()=>{
-      s.status='pending';
-      await sb.from('sightings').update({status:'pending'}).eq('id',id);
-      renderAll();if(selectedCat===s.catId)renderTerr(s.catId);
-      toast('Spotting teruggedraaid naar pending.');
-    });
-}
 async function confirmDeleteSighting(id){
   showConfirm('🗑️','Spotting verwijderen?',
     'De spotting wordt permanent verwijderd en het territorium verkleint.',
@@ -3053,9 +3014,6 @@ async function denyAndUnclaim(sightingId){
   await unclaimSighting(sightingId);
 }
 
-// Track which cats have been excluded per sighting
-const sightingExclusions={}; // {sightingId: [catId, ...]}
-
 function dismissNotif(notifId){
   const idx=notifs.findIndex(n=>n.id===notifId);
   if(idx>-1)notifs.splice(idx,1);
@@ -3101,58 +3059,6 @@ function getSpotterStats(userId){
   const lostFound=sightings.filter(s=>s.reporterId===userId&&cats.find(c=>c.id===s.catId&&!c.lost));
   if(lostFound.length>=1)badges.push({icon:'🦸',name:'Kattenredder',desc:'Hielp een vermiste kat vinden'});
   return{count,uniqueCats:uniqueCats.size,badges};
-}
-
-function openSpotterProfile(){
-  if(!me){toast('Log in om je profiel te zien.',true);return;}
-  const stats=getSpotterStats(me.id);
-  const myCatSpots=sightings
-    .filter(s=>s.reporterId===me.id&&s.status==='confirmed'&&s.catId)
-    .map(s=>({...s,cat:cats.find(c=>c.id===s.catId)}))
-    .filter(s=>s.cat)
-    .sort((a,b)=>new Date(b.time)-new Date(a.time));
-
-  const uniqueSpotted=[...new Map(myCatSpots.map(s=>[s.catId,s])).values()];
-
-  document.getElementById('spotter-modal-body').innerHTML=`
-    <div style="text-align:center;padding:8px 0 16px;">
-      <div style="font-size:3rem;margin-bottom:4px;">${me.name[0].toUpperCase()}</div>
-      <div style="font-family:'Playfair Display',serif;font-size:1.2rem;font-weight:700;">${me.name}</div>
-      <div style="color:var(--mid);font-size:0.8rem;margin-top:4px;">
-        <strong>${stats.count}</strong> spotting${stats.count!==1?'s':''} · 
-        <strong>${stats.uniqueCats}</strong> unieke kat${stats.uniqueCats!==1?'ten':''}
-      </div>
-    </div>
-    ${stats.badges.length?`
-    <div style="margin-bottom:16px;">
-      <div class="section-label" style="margin-bottom:8px;">Badges</div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;">
-        ${stats.badges.map(b=>`
-          <div style="background:var(--cream);border:1px solid var(--border);border-radius:10px;
-            padding:8px 12px;display:flex;align-items:center;gap:8px;font-size:0.8rem;">
-            <span style="font-size:1.4rem;">${b.icon}</span>
-            <div><div style="font-weight:700;">${b.name}</div><div style="color:var(--mid);font-size:0.72rem;">${b.desc}</div></div>
-          </div>`).join('')}
-      </div>
-    </div>`:''}
-    ${uniqueSpotted.length?`
-    <div>
-      <div class="section-label" style="margin-bottom:8px;">Gespot door jou</div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;">
-        ${uniqueSpotted.map(s=>`
-          <div onclick="closeModal('spotter-modal');showDetail('${s.catId}')" 
-            style="display:flex;align-items:center;gap:8px;padding:7px 10px;
-            background:var(--cream);border:1px solid var(--border);border-radius:10px;cursor:pointer;">
-            <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#c8b8a2,#a89880);
-              display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
-              ${s.cat.photo?`<img src="${s.cat.photo}" style="width:100%;height:100%;object-fit:cover;">`:(s.cat.emoji||'🐱')}
-            </div>
-            <div style="font-size:0.82rem;font-weight:600;">${s.cat.name}</div>
-          </div>`).join('')}
-      </div>
-    </div>`:'<div class="empty-state" style="padding:16px 0;"><div class="big-icon">🔍</div>Nog geen bevestigde spottings.</div>'}
-  `;
-  openModal('spotter-modal');
 }
 
 // CAT SIGHTINGS
