@@ -1133,6 +1133,7 @@ function renderTerr(catId){
 
 function renderAll(){
   renderCatMkrs();renderSightMkrs();renderCatsList();renderSightList();renderPendingList();renderAlerts();updateCatSel();updateBadges();
+  setTimeout(observeLazyImgs, 50);
 }
 
 // SIDEBAR
@@ -1298,7 +1299,7 @@ function renderPendingList(){
         <div style="color:var(--mid)">📍 ${s.location}</div>
         <div style="font-size:0.75rem;color:var(--mid);margin-top:2px">Gemeld door: ${s.reporter||'Anoniem'}</div>
         ${s.notes?`<div style="font-style:italic;font-size:0.75rem;margin-top:2px">"${s.notes}"</div>`:''}
-        ${s.photo?`<img src="${s.photo}" class="sighting-photo">`:''}
+        ${s.photo?`<img data-src="${s.photo}" src="" class="sighting-photo" style="background:var(--cream);">`:''}
         <div class="sighting-actions">
           <button class="btn btn-primary btn-sm" onclick="confirmS('${s.id}')">✓ Ja, ${cat?cat.name:'mijn kat'}!</button>
           <button class="btn btn-sm" style="background:#fde8e8;color:#9b2020" onclick="denyS('${s.id}')">✕ Niet mijn kat</button>
@@ -2848,7 +2849,7 @@ function buildSightingsHTML(){
     html+=myMystery.map(s=>`<div class="sighting-card" style="margin-bottom:8px;border-left:3px solid #7c5cbf;">
       <div class="sighting-header"><div class="sighting-cat">❓ Onbekend</div><div class="sighting-time">${fmt(s.time)}</div></div>
       <div style="color:var(--mid);font-size:0.78rem;">📍 ${s.location}</div>
-      ${s.photo?`<img src="${s.photo}" class="sighting-photo">`:''}
+      ${s.photo?`<img data-src="${s.photo}" src="" class="sighting-photo" style="background:var(--cream);">`:''}
       <button class="btn btn-outline btn-sm" style="margin-top:5px;font-size:0.72rem;" onclick="openEditSighting('${s.id}')">✏️ Bewerken</button>
     </div>`).join('');
   }
@@ -2857,7 +2858,7 @@ function buildSightingsHTML(){
     html+=myPending.map(s=>`<div class="sighting-card" style="margin-bottom:8px;opacity:0.85;">
       <div class="sighting-header"><div class="sighting-cat">${s.cat.emoji||'🐱'} ${s.cat.name}</div><div class="sighting-time">${fmt(s.time)}</div></div>
       <div style="color:var(--mid);font-size:0.78rem;">📍 ${s.location}</div>
-      ${s.photo?`<img src="${s.photo}" class="sighting-photo">`:''}
+      ${s.photo?`<img data-src="${s.photo}" src="" class="sighting-photo" style="background:var(--cream);">`:''}
       <button class="btn btn-outline btn-sm" style="margin-top:5px;font-size:0.72rem;" onclick="openEditSighting('${s.id}')">✏️ Bewerken</button>
     </div>`).join('');
   }
@@ -2891,7 +2892,7 @@ function buildPendingHTML(){
       <div class="sighting-header"><div class="sighting-cat">${cat?cat.name:'?'}</div><div class="sighting-time">${fmt(s.time)}</div></div>
       <div style="color:var(--mid)">📍 ${s.location}</div>
       <div style="font-size:0.75rem;color:var(--mid)">Door: ${s.reporter||'Anoniem'}</div>
-      ${s.photo?`<img src="${s.photo}" class="sighting-photo">`:''}
+      ${s.photo?`<img data-src="${s.photo}" src="" class="sighting-photo" style="background:var(--cream);">`:''}
       <div class="sighting-actions">
         <button class="btn btn-primary btn-sm" onclick="confirmS('${s.id}');closeMobileSheet()">✓ Ja!</button>
         <button class="btn btn-sm" style="background:#fde8e8;color:#9b2020" onclick="denyS('${s.id}');closeMobileSheet()">✕ Nee</button>
@@ -3277,6 +3278,33 @@ async function submitFeedback(){
   if(fbErr){toast('Fout bij versturen. Probeer via GitHub Issues.',true);return;}
   closeModal('feedback-modal');
   toast('Bedankt voor je feedback! 🙏');
+}
+
+// LAZY IMAGE LOADING
+const imgObserver = typeof IntersectionObserver !== 'undefined'
+  ? new IntersectionObserver((entries)=>{
+      entries.forEach(e=>{
+        if(e.isIntersecting){
+          const img=e.target;
+          if(img.dataset.src){
+            img.src=img.dataset.src;
+            img.removeAttribute('data-src');
+            imgObserver.unobserve(img);
+          }
+        }
+      });
+    },{rootMargin:'100px'})
+  : null;
+
+function lazyImg(src, cls='', style=''){
+  if(!src)return'';
+  return`<img data-src="${src}" src="" class="${cls}" style="background:var(--cream);${style}" 
+    onload="this.style.background=''" onerror="this.style.display='none'">`;
+}
+
+function observeLazyImgs(){
+  if(!imgObserver)return;
+  document.querySelectorAll('img[data-src]').forEach(img=>imgObserver.observe(img));
 }
 
 // MOBILE SIDEBAR TOGGLE (kept for desktop)
