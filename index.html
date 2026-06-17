@@ -2204,6 +2204,7 @@ async function loadFromSupabase(forceRefresh=false){
 window.onload=async()=>{
   initCookieBanner();
   initMap();
+  trackVisit();
   // Show subtle loading state
   const loginBtn=document.querySelector('.header-right .btn');
   try{
@@ -3358,6 +3359,42 @@ async function deletePhotoFromStorage(url){
     const path=url.slice(idx+marker.length);
     await sb.storage.from('cat-photos').remove([path]);
   }catch(e){console.warn('Could not delete photo from storage:',e);}
+}
+
+// VISITOR ANALYTICS
+async function trackVisit(){
+  try{
+    const today=new Date().toISOString().slice(0,10); // YYYY-MM-DD
+    const key='kk_visited_'+today;
+    if(localStorage.getItem(key))return; // already tracked today
+    localStorage.setItem(key, '1');
+    // Clean old keys (keep only last 7 days)
+    Object.keys(localStorage).filter(k=>k.startsWith('kk_visited_')&&k<'kk_visited_'+today)
+      .forEach(k=>localStorage.removeItem(k));
+    // Log visit to Supabase
+    const ua=navigator.userAgent;
+    const mobile=/Mobile|Android|iPhone|iPad/i.test(ua);
+    await sb.from('visits').insert({
+      visited_at: new Date().toISOString(),
+      date: today,
+      is_mobile: mobile,
+      referrer: document.referrer||null,
+      user_name: null // filled in after login
+    });
+  }catch(e){} // silent fail
+}
+
+async function updateVisitUser(){
+  // Called after login to link visit to user
+  if(!me)return;
+  try{
+    const today=new Date().toISOString().slice(0,10);
+    await sb.from('visits').update({user_name:me.name})
+      .eq('date',today)
+      .is('user_name',null)
+      .gte('visited_at',today+'T00:00:00')
+      .lte('visited_at',today+'T23:59:59');
+  }catch(e){}
 }
 
 // MOBILE SIDEBAR TOGGLE (kept for desktop)
