@@ -3364,14 +3364,20 @@ async function deletePhotoFromStorage(url){
 // VISITOR ANALYTICS
 async function trackVisit(){
   try{
-    const today=new Date().toISOString().slice(0,10); // YYYY-MM-DD
+    const today=new Date().toISOString().slice(0,10);
     const key='kk_visited_'+today;
-    if(localStorage.getItem(key))return; // already tracked today
+    if(localStorage.getItem(key))return; // once per day
     localStorage.setItem(key, '1');
-    // Clean old keys (keep only last 7 days)
-    Object.keys(localStorage).filter(k=>k.startsWith('kk_visited_')&&k<'kk_visited_'+today)
+    // Track total visits (returning visitor counter)
+    const totalKey='kk_visit_count';
+    const visitCount=(parseInt(localStorage.getItem(totalKey)||'0'))+1;
+    localStorage.setItem(totalKey, visitCount);
+    const firstVisit=localStorage.getItem('kk_first_visit')||today;
+    localStorage.setItem('kk_first_visit', firstVisit);
+    // Clean old daily keys
+    Object.keys(localStorage)
+      .filter(k=>k.startsWith('kk_visited_')&&k<'kk_visited_'+today)
       .forEach(k=>localStorage.removeItem(k));
-    // Log visit to Supabase
     const ua=navigator.userAgent;
     const mobile=/Mobile|Android|iPhone|iPad/i.test(ua);
     await sb.from('visits').insert({
@@ -3379,9 +3385,11 @@ async function trackVisit(){
       date: today,
       is_mobile: mobile,
       referrer: document.referrer||null,
-      user_name: null // filled in after login
+      user_name: null,
+      visit_count: visitCount,      // how many times this device visited
+      first_visit: firstVisit       // when this device first visited
     });
-  }catch(e){} // silent fail
+  }catch(e){}
 }
 
 async function updateVisitUser(){
