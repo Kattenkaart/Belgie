@@ -1467,11 +1467,12 @@ function showDetail(catId){
     renderSightMkrs();renderTerr(catId);map.panTo([cat.lat,cat.lng]);
   } else {
     // Desktop — rebuild detail panel fresh
-    const photoHtml=cat.photo
-      ?`<img src="${cat.photo}" class="cat-main-photo" data-fs="${cat.photo}" onclick="openPhotoFullscreen(this.dataset.fs)">`
+    const allPhotosD=[...(cat.photo?[cat.photo]:[]),...(cat.extraPhotos||[])];
+    const photoHtml=allPhotosD.length
+      ?`<div id="gallery-desktop-detail"></div>`
       :`<div class="cat-main-photo-placeholder">${breedEmoji(cat.breed)}</div>`;
-    const extraHtml=(cat.extraPhotos||[]).map(p=>`<img src="${p}" class="gallery-thumb" data-fs="${p}" onclick="openPhotoFullscreen(this.dataset.fs)">`).join('');
-    const galleryHtml=extraHtml?`<div class="photo-gallery">${extraHtml}</div>`:'';
+    const extraHtml='';
+    const galleryHtml='';
     document.getElementById('detail-name').innerHTML=`${cat.name}${cat.lost?'<span class="tag tag-lost" style="font-size:0.62rem">🚨 Vermist</span>':''}`;
     document.getElementById('detail-meta').textContent=metaParts.join(' · ');
     const ph=document.getElementById('detail-photo');
