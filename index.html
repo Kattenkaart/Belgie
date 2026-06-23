@@ -1089,8 +1089,17 @@ function renderCatMkrs(){
       lat=cat.lat+Math.sin(angle)*offset;
       lng=cat.lng+Math.cos(angle)*offset;
     }
+    const catsAtSpot=cats.filter(c=>gd(c.lat,c.lng,cat.lat,cat.lng)<0.0002);
+    const onClick=()=>{
+      if(catsAtSpot.length>1&&map.getZoom()<17){
+        // Zoom in to separate them
+        map.setView([cat.lat,cat.lng],Math.min(map.getZoom()+3,18));
+      } else {
+        showDetail(cat.id);
+      }
+    };
     const m=L.marker([lat,lng],{icon:mkIcon(cat,0,size),pane:'catsPane'})
-      .addTo(map).on('click',()=>showDetail(cat.id));
+      .addTo(map).on('click',onClick);
     catMkrs[cat.id]=m;
   });
   // Re-render on zoom change
@@ -1101,11 +1110,14 @@ function renderCatMkrs(){
 }
 
 function mkMysteryIcon(color='#7c5cbf'){
+  const zoom=map?map.getZoom():14;
+  const ms=zoom>=16?22:zoom>=14?17:zoom>=12?13:10;
+  const fs=Math.round(ms*0.55);
   return L.divIcon({
-    html:`<div style="width:26px;height:26px;background:${color};border:2px solid white;
+    html:`<div style="width:${ms}px;height:${ms}px;background:${color};border:2px solid white;
       border-radius:50%;display:flex;align-items:center;justify-content:center;
-      font-size:12px;box-shadow:0 2px 6px rgba(0,0,0,.3);cursor:pointer;">❓</div>`,
-    className:'',iconSize:[26,26],iconAnchor:[13,13]
+      font-size:${fs}px;box-shadow:0 2px 6px rgba(0,0,0,.3);cursor:pointer;">❓</div>`,
+    className:'',iconSize:[ms,ms],iconAnchor:[ms/2,ms/2]
   });
 }
 function mkMysteryIconGray(){return mkMysteryIcon('#aaa');}
@@ -1122,7 +1134,7 @@ function renderSightMkrs(){
   sightings.filter(s=>s.status==='unmatched'&&s.lat&&s.lng).forEach(s=>{
     const excluded=window.ownerExcluded&&window.ownerExcluded.has(s.id+':'+(me?.id||'anon'));
     const icon=excluded?mkMysteryIconGray():mkMysteryIcon();
-    const m=L.marker([s.lat,s.lng],{icon})
+    const m=L.marker([s.lat,s.lng],{icon,pane:'sightingsPane'})
       .addTo(map)
       .on('click',()=>openMysteryPanel(s));
     sightMkrs.push(m);
