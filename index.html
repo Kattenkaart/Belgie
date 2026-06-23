@@ -1048,14 +1048,18 @@ function mkIcon(cat, clusterCount=0){
   const anim=isLost?'animation:lostpulse 1.6s infinite;':'';
   const emoji=cat.emoji&&cat.emoji!=='🐱'?cat.emoji:breedEmoji(cat.breed);
   const cluster=clusterCount>1?`<div class="cluster-badge">${clusterCount}</div>`:'';
+  const lostLabel=isLost?`<div style="position:absolute;top:38px;left:50%;transform:translateX(-50%);
+    background:#b03030;color:white;font-size:9px;font-weight:700;padding:1px 5px;
+    border-radius:4px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.3);">Vermist</div>`:'';
   return L.divIcon({
-    html:`<div style="position:relative;width:36px;height:36px;">
+    html:`<div style="position:relative;width:36px;height:${isLost?54:36}px;">
       <div style="width:36px;height:36px;background:${bg};border:3px solid white;border-radius:50%;
         display:flex;align-items:center;justify-content:center;font-size:17px;
         box-shadow:0 2px 8px rgba(0,0,0,.3);cursor:pointer;${anim}">${emoji}</div>
       ${cluster}
+      ${lostLabel}
     </div>`,
-    className:'',iconSize:[36,36],iconAnchor:[18,18]
+    className:'',iconSize:[36,isLost?54:36],iconAnchor:[18,18]
   });
 }
 
