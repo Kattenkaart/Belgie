@@ -961,6 +961,9 @@ function initMap(){
   const isMobile=window.innerWidth<=700;
   map=L.map('map',{zoomControl:!isMobile}).setView(OUD,13);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);
+  // Custom panes so sightings render behind cats
+  map.createPane('sightingsPane').style.zIndex=390;
+  map.createPane('catsPane').style.zIndex=400;
   map.on('click',onMapClick);
   // Fix attribution position on mobile immediately
   setTimeout(()=>{
@@ -1086,7 +1089,7 @@ function renderCatMkrs(){
       lat=cat.lat+Math.sin(angle)*offset;
       lng=cat.lng+Math.cos(angle)*offset;
     }
-    const m=L.marker([lat,lng],{icon:mkIcon(cat,0,size)})
+    const m=L.marker([lat,lng],{icon:mkIcon(cat,0,size),pane:'catsPane'})
       .addTo(map).on('click',()=>showDetail(cat.id));
     catMkrs[cat.id]=m;
   });
@@ -1113,7 +1116,7 @@ function renderSightMkrs(){
   sightings.filter(s=>s.status==='confirmed').forEach(s=>{
     const isSelected=selectedCat&&s.catId===selectedCat;
     const icon=isSelected?dotIcon('confirmed'):dotIcon('inactive');
-    sightMkrs.push(L.marker([s.lat,s.lng],{icon}).addTo(map));
+    sightMkrs.push(L.marker([s.lat,s.lng],{icon,pane:'sightingsPane'}).addTo(map));
   });
   // Unmatched sightings — purple question mark
   sightings.filter(s=>s.status==='unmatched'&&s.lat&&s.lng).forEach(s=>{
@@ -1458,7 +1461,6 @@ function showDetail(catId){
     const extraHtml=(cat.extraPhotos||[]).map(p=>`<img src="${p}" data-fs="${p}" onclick="openPhotoFullscreen(this.dataset.fs)" style="width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;">`).join('');
     document.getElementById('mobile-cat-modal-body').innerHTML=`
       ${photoHtml}
-      ${photoHtml}
       <div style="font-size:0.8rem;color:var(--mid);margin-bottom:6px;">${metaParts.join(' · ')}</div>
       <div style="font-size:0.88rem;line-height:1.6;margin-bottom:14px;">${cat.bio}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -1477,8 +1479,14 @@ function showDetail(catId){
     document.getElementById('detail-name').innerHTML=`${cat.name}${cat.lost?'<span class="tag tag-lost" style="font-size:0.62rem">🚨 Vermist</span>':''}`;
     document.getElementById('detail-meta').textContent=metaParts.join(' · ');
     const ph=document.getElementById('detail-photo');
-    ph.style.cssText='display:flex;flex-direction:column;gap:5px;';
-    ph.innerHTML=photoHtml+(galleryHtml||'');
+    ph.style.cssText='display:flex;flex-direction:column;gap:6px;';
+    ph.innerHTML=photoHtml;
+    if(galleryHtml){
+      const extraRow=document.createElement('div');
+      extraRow.style.cssText='display:flex;flex-direction:row;gap:5px;flex-wrap:wrap;';
+      extraRow.innerHTML=(cat.extraPhotos||[]).map((p,i)=>`<img src="${p}" data-all='${JSON.stringify(allPhotosD)}' data-idx="${i+1}" onclick="openPhotoFullscreenGallery(this)" style="width:52px;height:52px;object-fit:cover;border-radius:6px;cursor:pointer;flex-shrink:0;">`).join('');
+      ph.appendChild(extraRow);
+    }
     document.getElementById('detail-bio').textContent=cat.bio;
     document.getElementById('detail-actions').innerHTML=btns;
     document.getElementById('cat-detail').classList.add('open');
