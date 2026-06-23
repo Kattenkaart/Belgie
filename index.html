@@ -962,8 +962,6 @@ function initMap(){
   map=L.map('map',{zoomControl:!isMobile}).setView(OUD,13);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);
   map.on('click',onMapClick);
-  map.on('moveend',updateLostBanner);
-  map.on('zoomend',updateLostBanner);
   // Fix attribution position on mobile immediately
   setTimeout(()=>{
     if(window.innerWidth<=700){
@@ -1163,7 +1161,6 @@ function renderTerr(catId){
 function renderAll(){
   renderCatMkrs();renderSightMkrs();renderCatsList();renderSightList();renderPendingList();renderAlerts();updateCatSel();updateBadges();
   setTimeout(observeLazyImgs, 50);
-  updateLostBanner();
 }
 
 // SIDEBAR
@@ -1475,8 +1472,8 @@ function showDetail(catId){
     const photoHtml=cat.photo
       ?`<img src="${cat.photo}" class="cat-main-photo" data-fs="${cat.photo}" data-all='${JSON.stringify(allPhotosD)}' onclick="openPhotoFullscreenGallery(this)" style="cursor:pointer;">`
       :`<div class="cat-main-photo-placeholder">${breedEmoji(cat.breed)}</div>`;
-    const extraHtml=(cat.extraPhotos||[]).map((p,i)=>`<img src="${p}" class="gallery-thumb" data-fs="${p}" data-all='${JSON.stringify(allPhotosD)}' data-idx="${i+1}" onclick="openPhotoFullscreenGallery(this)" style="cursor:pointer;">`).join('');
-    const galleryHtml=extraHtml?`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">${extraHtml}</div>`:'';
+    const extraHtml=(cat.extraPhotos||[]).map((p,i)=>`<img src="${p}" data-all='${JSON.stringify(allPhotosD)}' data-idx="${i+1}" onclick="openPhotoFullscreenGallery(this)" style="width:52px;height:52px;object-fit:cover;border-radius:6px;cursor:pointer;flex-shrink:0;">`).join('');
+    const galleryHtml=extraHtml?`<div style="display:flex;flex-direction:row;gap:5px;flex-wrap:wrap;margin-top:6px;">${extraHtml}</div>`:'';
     document.getElementById('detail-name').innerHTML=`${cat.name}${cat.lost?'<span class="tag tag-lost" style="font-size:0.62rem">🚨 Vermist</span>':''}`;
     document.getElementById('detail-meta').textContent=metaParts.join(' · ');
     const ph=document.getElementById('detail-photo');
@@ -1849,7 +1846,10 @@ async function saveCat(){
   // Upload photos (Storage or base64 fallback)
   let mainPhotoUrl=editCatId?cats.find(c=>c.id===editCatId)?.photo:null;
   if(pendingMainPhoto){
-    mainPhotoUrl=await uploadPhoto(pendingMainPhoto,'cats');
+    // Delete old photo from Storage before uploading new one
+    if(mainPhotoUrl)await deletePhotoFromStorage(mainPhotoUrl);
+    const catName=document.getElementById('f-name')?.value?.trim()||'kat';
+    mainPhotoUrl=await uploadPhoto(pendingMainPhoto,'cats',catName);
   }
   const extraPhotoUrls=[];
   for(const f of pendingExtraPhotos){
@@ -2683,9 +2683,10 @@ function updateLostBanner(){
   const banner=document.getElementById('lost-banner');
   const content=document.getElementById('lost-banner-content');
   if(!banner||!content)return;
+  // Never show if user dismissed
+  if(localStorage.getItem('kk_banner_dismissed'))return;
   const lostCats=cats.filter(c=>c.lost);
   if(!lostCats.length){banner.style.display='none';return;}
-  // Show if any lost cat is within current map view
   const bounds=map.getBounds();
   const visible=lostCats.filter(c=>bounds.contains([c.lat,c.lng]));
   if(!visible.length){banner.style.display='none';return;}
@@ -3577,23 +3578,27 @@ function loadExtraPhotosForEdit(cat){
 // Fullscreen photo viewer
 function openPhotoFullscreenGallery(imgEl){
   const all=JSON.parse(imgEl.dataset.all||'[]');
-  const startIdx=parseInt(imgEl.dataset.idx||imgEl.dataset.fs?all.indexOf(imgEl.dataset.fs||imgEl.src):0)||0;
+  const startIdx=parseInt(imgEl.dataset.idx||0);
   if(!all.length){openPhotoFullscreen(imgEl.src);return;}
-  let idx=startIdx>=0?startIdx:0;
   const overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;display:flex;align-items:center;justify-content:center;';
-  const render=()=>{
-    overlay.innerHTML=`
+  overlay.dataset.idx=startIdx;
+  overlay.dataset.all=JSON.stringify(all);
+  const renderGallery=(o)=>{
+    const i=parseInt(o.dataset.idx);
+    const photos=JSON.parse(o.dataset.all);
+    o.innerHTML=`
       <button onclick="this.parentElement.remove()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.15);border:none;color:white;width:36px;height:36px;border-radius:50%;font-size:1.2rem;cursor:pointer;">✕</button>
-      <img src="${all[idx]}" style="max-width:95vw;max-height:90vh;object-fit:contain;border-radius:8px;">
-      ${all.length>1?`
-        <button onclick="event.stopPropagation();idx=(idx-1+${all.length})%${all.length};this.closest('div').querySelectorAll('img')[0].src=all[idx];" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:none;color:white;width:40px;height:40px;border-radius:50%;font-size:1.4rem;cursor:pointer;">&#8249;</button>
-        <button onclick="event.stopPropagation();idx=(idx+1)%${all.length};this.closest('div').querySelectorAll('img')[0].src=all[idx];" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:none;color:white;width:40px;height:40px;border-radius:50%;font-size:1.4rem;cursor:pointer;">&#8250;</button>
+      <img src="${photos[i]}" style="max-width:95vw;max-height:90vh;object-fit:contain;border-radius:8px;">
+      ${photos.length>1?`
+        <button onclick="event.stopPropagation();const o=this.closest('[data-all]');o.dataset.idx=(parseInt(o.dataset.idx)-1+${photos.length})%${photos.length};renderGallery(o);" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:none;color:white;width:40px;height:40px;border-radius:50%;font-size:1.4rem;cursor:pointer;">&#8249;</button>
+        <button onclick="event.stopPropagation();const o=this.closest('[data-all]');o.dataset.idx=(parseInt(o.dataset.idx)+1)%${photos.length};renderGallery(o);" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:none;color:white;width:40px;height:40px;border-radius:50%;font-size:1.4rem;cursor:pointer;">&#8250;</button>
         <div style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:6px;">
-          ${all.map((_,i)=>`<div style="width:7px;height:7px;border-radius:50%;background:${i===idx?'white':'rgba(255,255,255,0.4)'}"></div>`).join('')}
+          ${photos.map((_,j)=>`<div style="width:7px;height:7px;border-radius:50%;background:${j===i?'white':'rgba(255,255,255,0.4)'}"></div>`).join('')}
         </div>`:''}`;
   };
-  render();
+  window.renderGallery=renderGallery;
+  renderGallery(overlay);
   overlay.onclick=(e)=>{if(e.target===overlay)overlay.remove();};
   document.body.appendChild(overlay);
 }
