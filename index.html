@@ -2281,6 +2281,7 @@ window.onload=async()=>{
   // Laad uitgesloten spottings
   loadOwnerExcluded();
   // Sessie herstellen van localStorage
+  loadOwnerExcluded(); // reload after session check
   try{
     const saved=localStorage.getItem('kk_session');
     if(saved){
@@ -3065,7 +3066,7 @@ function buildAlertsHTML(){
           const prob=n.lat?terrProbability(c,n.lat,n.lng):0;
           return`<button class="btn btn-sm btn-primary" onclick="claimSighting('${n.sightingId}','${c.id}','${n.id}');closeMobileSheet()">${c.emoji||'🐱'} ${c.name} (${prob}%)</button>`;
         }).join('')}
-        <button class="btn btn-sm btn-outline" onclick="notMyCats('${n.sightingId}','${n.id}');closeMobileSheet()">Niet mijn kat(ten)</button>
+        <button class="btn btn-sm btn-outline" onclick="notMyCats('${n.sightingId}','${n.id}');closeMobileSheet()">Niet mijn kat</button>
       </div>
     </div>`:''}
     <div style="font-size:0.68rem;color:var(--mid);margin-top:4px">${fmt(n.time)}</div>
@@ -3286,7 +3287,7 @@ async function openMysteryPanel(s){
               ${c.emoji||'🐱'} ${c.name} (${prob}%)
             </button>`;
           }).join('')}
-          <button class="btn btn-outline btn-sm" onclick="notMyCats('${s.id}','um-${s.id}');closeModal('mystery-modal')">Niet mijn kat(ten)</button>
+          <button class="btn btn-outline btn-sm" onclick="notMyCats('${s.id}','um-${s.id}');closeModal('mystery-modal')">Niet mijn kat</button>
         </div>
       </div>`
     :`<div class="info-box" style="margin-top:10px;">Log in om deze kat te claimen.</div>`;
