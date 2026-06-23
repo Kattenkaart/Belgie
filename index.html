@@ -3203,8 +3203,9 @@ function saveOwnerExcluded(){
 
 async function notMyCats(sightingId, notifId){
   if(!window.ownerExcluded)loadOwnerExcluded();
-  window.ownerExcluded.add(sightingId); // device-level, no user ID needed
+  window.ownerExcluded.add(sightingId);
   saveOwnerExcluded();
+  saveDismissalToDB(sightingId);
   const idx=notifs.findIndex(n=>n.id===notifId);
   if(idx>-1)notifs.splice(idx,1);
   renderSightMkrs();
