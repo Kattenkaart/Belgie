@@ -1856,9 +1856,14 @@ async function saveCat(){
     const url=await uploadPhoto(f,'cats-extra');
     if(url)extraPhotoUrls.push(url);
   }
-  // Keep existing extra photos that weren't replaced
-  const existingExtras=editCatId?(cats.find(c=>c.id===editCatId)?.extraPhotos||[]):[];
-  const extraPhotos=[...existingExtras.slice(0,Math.max(0,3-extraPhotoUrls.length)),...extraPhotoUrls].slice(0,3);
+  // Use currentExtraPhotos (reflects deletions by user) + newly uploaded URLs
+  const keptUrls=currentExtraPhotos.filter(p=>typeof p==='string'&&!p.startsWith('blob:')&&p.startsWith('http'));
+  const extraPhotos=[...keptUrls,...extraPhotoUrls].slice(0,3);
+  // Delete removed photos from Storage
+  if(window.deletedExtraPhotos?.length){
+    for(const url of window.deletedExtraPhotos)await deletePhotoFromStorage(url);
+    window.deletedExtraPhotos=[];
+  }
   const ph={style:{display:mainPhotoUrl?'block':'none'},src:mainPhotoUrl};
   const addrInput=document.getElementById('f-addr');
   const addrOk=document.getElementById('addr-st').classList.contains('addr-ok')||addrInput.dataset.manualOk==='1';
