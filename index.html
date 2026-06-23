@@ -1041,25 +1041,26 @@ function breedEmoji(breed){
   return'🐱';
 }
 
-function mkIcon(cat, clusterCount=0){
+function mkIcon(cat, clusterCount=0, size=36){
   const isLost=cat.lost;
   const isOwn=me&&cat.owner===me.id;
   const bg=isLost?'#b03030':isOwn?'#c0623a':'#3a5e4e';
   const anim=isLost?'animation:lostpulse 1.6s infinite;':'';
   const emoji=cat.emoji&&cat.emoji!=='🐱'?cat.emoji:breedEmoji(cat.breed);
   const cluster=clusterCount>1?`<div class="cluster-badge">${clusterCount}</div>`:'';
-  const lostLabel=isLost?`<div style="position:absolute;top:38px;left:50%;transform:translateX(-50%);
-    background:#b03030;color:white;font-size:9px;font-weight:700;padding:1px 5px;
-    border-radius:4px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.3);">Vermist</div>`:'';
+  const fs=Math.round(size*0.47);
+  const lostLabel=isLost&&size>=22?`<div style="position:absolute;top:${size+2}px;left:50%;transform:translateX(-50%);
+    background:#b03030;color:white;font-size:8px;font-weight:700;padding:1px 4px;
+    border-radius:3px;white-space:nowrap;">Vermist</div>`:'';
   return L.divIcon({
-    html:`<div style="position:relative;width:36px;height:${isLost?54:36}px;">
-      <div style="width:36px;height:36px;background:${bg};border:3px solid white;border-radius:50%;
-        display:flex;align-items:center;justify-content:center;font-size:17px;
-        box-shadow:0 2px 8px rgba(0,0,0,.3);cursor:pointer;${anim}">${emoji}</div>
+    html:`<div style="position:relative;width:${size}px;height:${isLost&&size>=22?size+16:size}px;">
+      <div style="width:${size}px;height:${size}px;background:${bg};border:2px solid white;border-radius:50%;
+        display:flex;align-items:center;justify-content:center;font-size:${fs}px;
+        box-shadow:0 2px 6px rgba(0,0,0,.25);cursor:pointer;${anim}">${emoji}</div>
       ${cluster}
       ${lostLabel}
     </div>`,
-    className:'',iconSize:[36,isLost?54:36],iconAnchor:[18,18]
+    className:'',iconSize:[size,isLost&&size>=22?size+16:size],iconAnchor:[size/2,size/2]
   });
 }
 
@@ -1073,23 +1074,29 @@ function dotIcon(status){
 function renderCatMkrs(){
   Object.values(catMkrs).forEach(m=>map.removeLayer(m));catMkrs={};
   // Group cats at same location and spread them out slightly
+  const zoom=map.getZoom();
+  const size=zoom>=16?36:zoom>=14?28:zoom>=12?22:16;
   cats.forEach((cat,idx)=>{
     const sameSpot=cats.filter(c=>c.id!==cat.id&&gd(cat.lat,cat.lng,c.lat,c.lng)<0.0001);
     let lat=cat.lat, lng=cat.lng;
     if(sameSpot.length>0){
-      // Spread cats in a small circle — each gets a different angle
       const allAtSpot=cats.filter(c=>gd(cat.lat,cat.lng,c.lat,c.lng)<0.0001);
       const posIdx=allAtSpot.findIndex(c=>c.id===cat.id);
       const total=allAtSpot.length;
       const angle=(2*Math.PI/total)*posIdx;
-      const offset=0.00015; // ~15m offset
+      const offset=0.00015;
       lat=cat.lat+Math.sin(angle)*offset;
       lng=cat.lng+Math.cos(angle)*offset;
     }
-    const m=L.marker([lat,lng],{icon:mkIcon(cat,0)})
+    const m=L.marker([lat,lng],{icon:mkIcon(cat,0,size)})
       .addTo(map).on('click',()=>showDetail(cat.id));
     catMkrs[cat.id]=m;
   });
+  // Re-render on zoom change
+  if(!map._catZoomHandler){
+    map._catZoomHandler=true;
+    map.on('zoomend',()=>renderCatMkrs());
+  }
 }
 
 function mkMysteryIcon(color='#7c5cbf'){
@@ -1156,8 +1163,6 @@ function renderTerr(catId){
 function renderAll(){
   renderCatMkrs();renderSightMkrs();renderCatsList();renderSightList();renderPendingList();renderAlerts();updateCatSel();updateBadges();
   setTimeout(observeLazyImgs, 50);
-  const b=document.getElementById('lost-banner');
-  if(b)b._dismissed=false; // reset on data reload so new lost cats show
   updateLostBanner();
 }
 
@@ -1463,16 +1468,15 @@ function showDetail(catId){
         ${btns}
       </div>`;
     openModal('mobile-cat-modal');
-    if(allPhotosM.length)setTimeout(()=>buildGallery(allPhotosM,'gallery-mobile-detail'),10);
     renderSightMkrs();renderTerr(catId);map.panTo([cat.lat,cat.lng]);
   } else {
     // Desktop — rebuild detail panel fresh
     const allPhotosD=[...(cat.photo?[cat.photo]:[]),...(cat.extraPhotos||[])];
-    const photoHtml=allPhotosD.length
-      ?`<div id="gallery-desktop-detail"></div>`
+    const photoHtml=cat.photo
+      ?`<img src="${cat.photo}" class="cat-main-photo" data-fs="${cat.photo}" data-all='${JSON.stringify(allPhotosD)}' onclick="openPhotoFullscreenGallery(this)" style="cursor:pointer;">`
       :`<div class="cat-main-photo-placeholder">${breedEmoji(cat.breed)}</div>`;
-    const extraHtml='';
-    const galleryHtml='';
+    const extraHtml=(cat.extraPhotos||[]).map((p,i)=>`<img src="${p}" class="gallery-thumb" data-fs="${p}" data-all='${JSON.stringify(allPhotosD)}' data-idx="${i+1}" onclick="openPhotoFullscreenGallery(this)" style="cursor:pointer;">`).join('');
+    const galleryHtml=extraHtml?`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">${extraHtml}</div>`:'';
     document.getElementById('detail-name').innerHTML=`${cat.name}${cat.lost?'<span class="tag tag-lost" style="font-size:0.62rem">🚨 Vermist</span>':''}`;
     document.getElementById('detail-meta').textContent=metaParts.join(' · ');
     const ph=document.getElementById('detail-photo');
@@ -2691,7 +2695,7 @@ function updateLostBanner(){
     </div>
     ${visible.length>1?`<div style="font-size:0.7rem;color:var(--mid);margin-bottom:4px;">+${visible.length-1} andere vermiste kat${visible.length>2?'ten':''}</div>`:''}
     <button onclick="showDetail('${cat.id}')" style="width:100%;background:#c0623a;color:white;border:none;border-radius:6px;padding:4px 8px;font-size:0.72rem;cursor:pointer;">Bekijk profiel</button>
-    <button onclick="const b=document.getElementById('lost-banner');b._dismissed=true;b.style.display='none';" style="position:absolute;top:6px;right:8px;background:none;border:none;font-size:0.9rem;cursor:pointer;color:var(--mid);">✕</button>`;
+    <button onclick="document.getElementById('lost-banner').style.display='none';localStorage.setItem('kk_banner_dismissed','1');" style="position:absolute;top:6px;right:8px;background:none;border:none;font-size:0.9rem;cursor:pointer;color:var(--mid);">✕</button>`;
   banner.style.display='block';
 }
 
@@ -3565,6 +3569,29 @@ function loadExtraPhotosForEdit(cat){
 }
 
 // Fullscreen photo viewer
+function openPhotoFullscreenGallery(imgEl){
+  const all=JSON.parse(imgEl.dataset.all||'[]');
+  const startIdx=parseInt(imgEl.dataset.idx||imgEl.dataset.fs?all.indexOf(imgEl.dataset.fs||imgEl.src):0)||0;
+  if(!all.length){openPhotoFullscreen(imgEl.src);return;}
+  let idx=startIdx>=0?startIdx:0;
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  const render=()=>{
+    overlay.innerHTML=`
+      <button onclick="this.parentElement.remove()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.15);border:none;color:white;width:36px;height:36px;border-radius:50%;font-size:1.2rem;cursor:pointer;">✕</button>
+      <img src="${all[idx]}" style="max-width:95vw;max-height:90vh;object-fit:contain;border-radius:8px;">
+      ${all.length>1?`
+        <button onclick="event.stopPropagation();idx=(idx-1+${all.length})%${all.length};this.closest('div').querySelectorAll('img')[0].src=all[idx];" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:none;color:white;width:40px;height:40px;border-radius:50%;font-size:1.4rem;cursor:pointer;">&#8249;</button>
+        <button onclick="event.stopPropagation();idx=(idx+1)%${all.length};this.closest('div').querySelectorAll('img')[0].src=all[idx];" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:none;color:white;width:40px;height:40px;border-radius:50%;font-size:1.4rem;cursor:pointer;">&#8250;</button>
+        <div style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:6px;">
+          ${all.map((_,i)=>`<div style="width:7px;height:7px;border-radius:50%;background:${i===idx?'white':'rgba(255,255,255,0.4)'}"></div>`).join('')}
+        </div>`:''}`;
+  };
+  render();
+  overlay.onclick=(e)=>{if(e.target===overlay)overlay.remove();};
+  document.body.appendChild(overlay);
+}
+
 function openPhotoFullscreen(src){
   const overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:pointer;';
