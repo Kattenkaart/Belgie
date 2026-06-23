@@ -248,6 +248,15 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
 .toast{position:fixed;top:70px;right:14px;background:var(--forest);color:white;padding:10px 16px;border-radius:8px;font-size:0.81rem;font-weight:700;z-index:3000;box-shadow:var(--shadow);transform:translateX(130%);transition:transform 0.3s ease;max-width:270px;}
 .toast.show{transform:translateX(0);}.toast.error{background:var(--lost);}
 @keyframes lostpulse{0%,100%{opacity:1}50%{opacity:0.55}}
+.photo-gallery{position:relative;width:100%;aspect-ratio:4/3;background:var(--cream);border-radius:12px;overflow:hidden;margin-bottom:10px;}
+.photo-gallery img{width:100%;height:100%;object-fit:cover;display:block;}
+.gallery-arrow{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.45);color:white;border:none;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background 0.2s;}
+.gallery-arrow:hover{background:rgba(0,0,0,0.7);}
+.gallery-arrow.prev{left:8px;}
+.gallery-arrow.next{right:8px;}
+.gallery-dots{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:5px;}
+.gallery-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.5);cursor:pointer;transition:background 0.2s;}
+.gallery-dot.active{background:white;}
 @keyframes catSpin{0%{transform:rotate(0deg)}25%{transform:rotate(-20deg)}75%{transform:rotate(20deg)}100%{transform:rotate(0deg)}}
 .{animation:lostpulse 1.6s infinite;}
 .confirm-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:4000;align-items:center;justify-content:center;padding:20px;}
@@ -1432,13 +1441,14 @@ function showDetail(catId){
     const extraHtml=(cat.extraPhotos||[]).map(p=>`<img src="${p}" data-fs="${p}" onclick="openPhotoFullscreen(this.dataset.fs)" style="width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;">`).join('');
     document.getElementById('mobile-cat-modal-body').innerHTML=`
       ${photoHtml}
-      ${extraHtml?`<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">${extraHtml}</div>`:''}
+      ${photoHtml}
       <div style="font-size:0.8rem;color:var(--mid);margin-bottom:6px;">${metaParts.join(' · ')}</div>
       <div style="font-size:0.88rem;line-height:1.6;margin-bottom:14px;">${cat.bio}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${btns}
       </div>`;
     openModal('mobile-cat-modal');
+    if(allPhotos.length)setTimeout(()=>buildGallery(allPhotos,'gallery-mobile'),10);
     renderSightMkrs();renderTerr(catId);map.panTo([cat.lat,cat.lng]);
   } else {
     // Desktop — rebuild detail panel fresh
@@ -3405,6 +3415,51 @@ async function updateVisitUser(){
   }catch(e){}
 }
 
+// PHOTO GALLERY
+function buildGallery(photos, containerId){
+  const el=document.getElementById(containerId);
+  if(!el||!photos.length)return;
+  let idx=0;
+  const render=()=>{
+    el.innerHTML=`
+      <div class="photo-gallery" onclick="openPhotoFullscreen('${photos[idx]}')">
+        <img src="${photos[idx]}" style="cursor:pointer;">
+        ${photos.length>1?`
+          <button class="gallery-arrow prev" onclick="event.stopPropagation();galleryNav('${containerId}',-1)">&#8249;</button>
+          <button class="gallery-arrow next" onclick="event.stopPropagation();galleryNav('${containerId}',1)">&#8250;</button>
+          <div class="gallery-dots">
+            ${photos.map((_,i)=>`<div class="gallery-dot${i===idx?' active':''}" onclick="event.stopPropagation();galleryGoTo('${containerId}',${i})"></div>`).join('')}
+          </div>`:''}
+      </div>`;
+    el.dataset.idx=idx;
+    el.dataset.photos=JSON.stringify(photos);
+  };
+  render();
+}
+
+function galleryNav(containerId, dir){
+  const el=document.getElementById(containerId);
+  if(!el)return;
+  const photos=JSON.parse(el.dataset.photos||'[]');
+  let idx=(parseInt(el.dataset.idx||0)+dir+photos.length)%photos.length;
+  el.dataset.idx=idx;
+  const img=el.querySelector('img');
+  if(img)img.src=photos[idx];
+  el.querySelectorAll('.gallery-dot').forEach((d,i)=>d.classList.toggle('active',i===idx));
+  el.querySelector('.photo-gallery').onclick=()=>openPhotoFullscreen(photos[idx]);
+}
+
+function galleryGoTo(containerId, idx){
+  const el=document.getElementById(containerId);
+  if(!el)return;
+  const photos=JSON.parse(el.dataset.photos||'[]');
+  el.dataset.idx=idx;
+  const img=el.querySelector('img');
+  if(img)img.src=photos[idx];
+  el.querySelectorAll('.gallery-dot').forEach((d,i)=>d.classList.toggle('active',i===idx));
+  el.querySelector('.photo-gallery').onclick=()=>openPhotoFullscreen(photos[idx]);
+}
+
 // MOBILE SIDEBAR TOGGLE (kept for desktop)
 function toggleSidebar(){
   if(isMobile())return;
@@ -3432,8 +3487,17 @@ async function addExtraPhotos(input){
   const tooBig=files.find(f=>f.size>5*1024*1024);
   if(tooBig){toast('Een of meer fotos zijn te groot (max. 5MB per foto).',true);input.value='';return;}
   toast('Fotos verwerken...');
-  const compressed=await Promise.all(files.slice(0,remaining).map(f=>compressImage(f,800,0.75)));
-  compressed.forEach(file=>{
+  // Convert HEIC + compress
+  const processed=await Promise.all(files.slice(0,remaining).map(async f=>{
+    if(f.type==='image/heic'||f.type==='image/heif'||f.name.toLowerCase().endsWith('.heic')||f.name.toLowerCase().endsWith('.heif')){
+      try{
+        const blob=await heic2any({blob:f,toType:'image/jpeg',quality:0.85});
+        f=new File([blob],f.name.replace(/\.heic$/i,'.jpg').replace(/\.heif$/i,'.jpg'),{type:'image/jpeg'});
+      }catch(e){console.warn('HEIC conversion failed:',e);}
+    }
+    return compressImage(f,800,0.75);
+  }));
+  processed.forEach(file=>{
     pendingExtraPhotos.push(file);
     // Preview with object URL
     currentExtraPhotos.push(URL.createObjectURL(file));
