@@ -3539,6 +3539,31 @@ function galleryGoTo(containerId, idx){
   el.querySelector('.photo-gallery').onclick=()=>openPhotoFullscreen(photos[idx]);
 }
 
+// SIGHTING DISMISSALS (persisted in Supabase)
+async function loadDismissalsFromDB(){
+  if(!me)return;
+  try{
+    const {data}=await sb.from('sighting_dismissals').select('sighting_id').eq('user_id',me.id);
+    if(data?.length){
+      if(!window.ownerExcluded)window.ownerExcluded=new Set();
+      data.forEach(r=>window.ownerExcluded.add(r.sighting_id));
+      saveOwnerExcluded();
+      renderSightMkrs();
+      renderAlerts();
+    }
+  }catch(e){console.warn('Could not load dismissals:',e);}
+}
+
+async function saveDismissalToDB(sightingId){
+  if(!me)return;
+  try{
+    await sb.from('sighting_dismissals').insert({
+      sighting_id:sightingId,
+      user_id:me.id
+    });
+  }catch(e){} // ignore duplicate errors
+}
+
 // MOBILE SIDEBAR TOGGLE (kept for desktop)
 function toggleSidebar(){
   if(isMobile())return;
