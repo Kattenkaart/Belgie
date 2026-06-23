@@ -1459,8 +1459,11 @@ function showDetail(catId){
       ?`<img src="${cat.photo}" data-fs="${cat.photo}" onclick="openPhotoFullscreen(this.dataset.fs)" style="width:100%;max-height:220px;object-fit:cover;border-radius:10px;margin-bottom:10px;cursor:pointer;">`
       :`<div style="width:100%;height:120px;background:linear-gradient(135deg,#c8b8a2,#a89880);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:3rem;margin-bottom:10px;">${cat.emoji||'🐱'}</div>`;
     const extraHtml=(cat.extraPhotos||[]).map(p=>`<img src="${p}" data-fs="${p}" onclick="openPhotoFullscreen(this.dataset.fs)" style="width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;">`).join('');
+    const allPhotosM=[...(cat.photo?[cat.photo]:[]),...(cat.extraPhotos||[])];
+    const extraRowM=(cat.extraPhotos||[]).map((p,i)=>`<img src="${p}" data-all='${JSON.stringify(allPhotosM)}' data-idx="${i+1}" onclick="openPhotoFullscreenGallery(this)" style="width:60px;height:60px;object-fit:cover;border-radius:8px;cursor:pointer;flex-shrink:0;">`).join('');
     document.getElementById('mobile-cat-modal-body').innerHTML=`
       ${photoHtml}
+      ${extraRowM?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">${extraRowM}</div>`:''}
       <div style="font-size:0.8rem;color:var(--mid);margin-bottom:6px;">${metaParts.join(' · ')}</div>
       <div style="font-size:0.88rem;line-height:1.6;margin-bottom:14px;">${cat.bio}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -1480,17 +1483,10 @@ function showDetail(catId){
     document.getElementById('detail-meta').textContent=metaParts.join(' · ');
     const ph=document.getElementById('detail-photo');
     ph.style.cssText='display:flex;flex-direction:column;gap:6px;';
-    ph.innerHTML=photoHtml;
-    if(galleryHtml){
-      const extraRow=document.createElement('div');
-      extraRow.style.cssText='display:flex;flex-direction:row;gap:5px;flex-wrap:wrap;';
-      extraRow.innerHTML=(cat.extraPhotos||[]).map((p,i)=>`<img src="${p}" data-all='${JSON.stringify(allPhotosD)}' data-idx="${i+1}" onclick="openPhotoFullscreenGallery(this)" style="width:52px;height:52px;object-fit:cover;border-radius:6px;cursor:pointer;flex-shrink:0;">`).join('');
-      ph.appendChild(extraRow);
-    }
+    ph.innerHTML=photoHtml+(galleryHtml||'');
     document.getElementById('detail-bio').textContent=cat.bio;
     document.getElementById('detail-actions').innerHTML=btns;
     document.getElementById('cat-detail').classList.add('open');
-    if(allPhotosD?.length)setTimeout(()=>buildGallery(allPhotosD,'gallery-desktop-detail'),10);
     renderCatsList();renderSightMkrs();renderTerr(catId);map.panTo([cat.lat,cat.lng]);
   }
 }
