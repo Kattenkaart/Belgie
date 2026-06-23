@@ -1133,7 +1133,7 @@ function renderSightMkrs(){
   });
   // Unmatched sightings — purple question mark
   sightings.filter(s=>s.status==='unmatched'&&s.lat&&s.lng).forEach(s=>{
-    const excluded=window.ownerExcluded&&window.ownerExcluded.has(s.id+':'+(me?.id||'anon'));
+    const excluded=window.ownerExcluded&&window.ownerExcluded.has(s.id);
     const icon=excluded?mkMysteryIconGray():mkMysteryIcon();
     const m=L.marker([s.lat,s.lng],{icon,pane:'sightingsPane'})
       .addTo(map)
@@ -1389,7 +1389,7 @@ function renderAlerts(){
   // Unmatched sighting alerts — show to owners of nearby cats (unless excluded)
   const unmatchedAlerts=me?sightings
     .filter(s=>s.status==='unmatched')
-    .filter(s=>!(window.ownerExcluded&&window.ownerExcluded.has(s.id+':'+(me?.id||'anon'))))
+    .filter(s=>!(window.ownerExcluded&&window.ownerExcluded.has(s.id)))
     .filter(s=>{
       const myCats=cats.filter(c=>c.owner===me.id);
       return myCats.some(c=>gd(s.lat||OUD[0],s.lng||OUD[1],c.lat,c.lng)<0.0045||c.lost);
@@ -3039,7 +3039,7 @@ function buildAlertsHTML(){
   );
   const unmatchedMob=me?sightings
     .filter(s=>s.status==='unmatched')
-    .filter(s=>!(window.ownerExcluded&&window.ownerExcluded.has(s.id+':'+(me?.id||'anon'))))
+    .filter(s=>!(window.ownerExcluded&&window.ownerExcluded.has(s.id)))
     .filter(s=>cats.filter(c=>c.owner===me.id).some(c=>gd(s.lat||OUD[0],s.lng||OUD[1],c.lat,c.lng)<0.0045||c.lost))
     .map(s=>({
       id:'um-'+s.id,title:'❓ Onbekende kat gespot!',
@@ -3202,7 +3202,7 @@ function saveOwnerExcluded(){
 
 async function notMyCats(sightingId, notifId){
   if(!window.ownerExcluded)loadOwnerExcluded();
-  window.ownerExcluded.add(sightingId+':'+(me?.id||'anon'));
+  window.ownerExcluded.add(sightingId); // device-level, no user ID needed
   saveOwnerExcluded();
   const idx=notifs.findIndex(n=>n.id===notifId);
   if(idx>-1)notifs.splice(idx,1);
