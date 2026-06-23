@@ -1069,7 +1069,7 @@ function mkIcon(cat, clusterCount=0, size=36){
 function dotIcon(status){
   const c={confirmed:'#1a6636',pending:'#856404',denied:'#9b2020',inactive:'#aaa'}[status]||'#aaa';
   const zoom=map?map.getZoom():14;
-  const size=zoom>=16?18:zoom>=14?15:zoom>=12?13:zoom>=10?11:9;
+  const size=zoom>=16?22:zoom>=14?18:zoom>=12?15:zoom>=10?12:10;
   const opacity=status==='inactive'?'0.5':'1';
   return L.divIcon({html:`<div style="width:${size}px;height:${size}px;background:${c};border:2px solid white;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.2);opacity:${opacity};"></div>`,className:'',iconSize:[size,size],iconAnchor:[size/2,size/2]});
 }
@@ -1113,7 +1113,7 @@ function renderCatMkrs(){
 
 function mkMysteryIcon(color='#7c5cbf'){
   const zoom=map?map.getZoom():14;
-  const ms=zoom>=16?22:zoom>=14?17:zoom>=12?13:10;
+  const ms=zoom>=16?26:zoom>=14?22:zoom>=12?17:13;
   const fs=Math.round(ms*0.55);
   return L.divIcon({
     html:`<div style="width:${ms}px;height:${ms}px;background:${color};border:2px solid white;
