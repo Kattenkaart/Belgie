@@ -3389,15 +3389,18 @@ function observeLazyImgs(){
 
 // DELETE PHOTO FROM STORAGE
 async function deletePhotoFromStorage(url){
-  if(!url||url.startsWith('data:'))return; // skip base64
+  if(!url||url.startsWith('data:'))return;
   try{
-    // Extract path from URL: .../cat-photos/cats/filename.jpg → cats/filename.jpg
     const marker='/cat-photos/';
     const idx=url.indexOf(marker);
-    if(idx<0)return;
-    const path=url.slice(idx+marker.length);
-    await sb.storage.from('cat-photos').remove([path]);
-  }catch(e){console.warn('Could not delete photo from storage:',e);}
+    if(idx<0){console.warn('Could not extract path from:',url);return;}
+    // Remove query params if any
+    let path=url.slice(idx+marker.length).split('?')[0];
+    console.info('Deleting from storage:', path);
+    const {error}=await sb.storage.from('cat-photos').remove([path]);
+    if(error)console.error('Storage delete error:',error.message);
+    else console.info('Deleted from storage:', path);
+  }catch(e){console.warn('Could not delete photo:',e);}
 }
 
 // VISITOR ANALYTICS
