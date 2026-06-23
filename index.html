@@ -1107,7 +1107,7 @@ function renderCatMkrs(){
   // Re-render on zoom change
   if(!map._catZoomHandler){
     map._catZoomHandler=true;
-    map.on('zoomend',()=>renderCatMkrs());
+    map.on('zoomend',()=>{renderCatMkrs();renderSightMkrs();});
   }
 }
 
