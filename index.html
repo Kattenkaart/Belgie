@@ -1075,7 +1075,7 @@ function renderCatMkrs(){
   Object.values(catMkrs).forEach(m=>map.removeLayer(m));catMkrs={};
   // Group cats at same location and spread them out slightly
   const zoom=map.getZoom();
-  const size=zoom>=16?36:zoom>=14?28:zoom>=12?22:16;
+  const size=zoom>=16?36:zoom>=14?30:zoom>=12?26:zoom>=10?22:18;
   cats.forEach((cat,idx)=>{
     const sameSpot=cats.filter(c=>c.id!==cat.id&&gd(cat.lat,cat.lng,c.lat,c.lng)<0.0001);
     let lat=cat.lat, lng=cat.lng;
@@ -2678,6 +2678,7 @@ function dismissLostBanner(e){
   lostBannerDismissed=true;
   document.getElementById('lost-banner').classList.remove('visible');
 }
+function checkLostBannerVisibility(lat,lng){updateLostBanner();}
 function updateLostBanner(){
   const banner=document.getElementById('lost-banner');
   const content=document.getElementById('lost-banner-content');
