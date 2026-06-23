@@ -365,6 +365,12 @@ header{background:var(--forest);color:var(--cream);padding:0 18px;display:flex;a
       </div>
     </div>
     <div id="map"></div>
+    <div id="lost-banner" style="display:none;position:absolute;top:10px;left:10px;z-index:800;
+      background:white;border-radius:12px;box-shadow:0 3px 14px rgba(0,0,0,0.2);
+      padding:10px 12px;max-width:220px;border-left:4px solid #c0623a;">
+      <div id="lost-banner-content"></div>
+    </div>
+
     <div id="map-loading" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(255,255,255,0.92);border-radius:16px;padding:18px 28px;z-index:900;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.15);pointer-events:none;"><div style="font-size:2.2rem;animation:catSpin 0.8s ease-in-out infinite;">🐱</div><div style="font-size:0.82rem;color:var(--mid);margin-top:8px;font-weight:600;">Katten laden...</div></div>
     <div id="map-loading-mini" style="display:none;position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,0.92);border-radius:20px;padding:5px 12px;z-index:900;box-shadow:0 2px 8px rgba(0,0,0,0.15);pointer-events:none;align-items:center;gap:6px;font-size:0.75rem;color:var(--mid);white-space:nowrap;">
       <span style="animation:catSpin 0.8s ease-in-out infinite;display:inline-block;">🐱</span> Meer katten laden...
@@ -956,6 +962,8 @@ function initMap(){
   map=L.map('map',{zoomControl:!isMobile}).setView(OUD,13);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);
   map.on('click',onMapClick);
+  map.on('moveend',updateLostBanner);
+  map.on('zoomend',updateLostBanner);
   // Fix attribution position on mobile immediately
   setTimeout(()=>{
     if(window.innerWidth<=700){
@@ -1144,6 +1152,7 @@ function renderTerr(catId){
 function renderAll(){
   renderCatMkrs();renderSightMkrs();renderCatsList();renderSightList();renderPendingList();renderAlerts();updateCatSel();updateBadges();
   setTimeout(observeLazyImgs, 50);
+  updateLostBanner();
 }
 
 // SIDEBAR
@@ -2033,7 +2042,9 @@ async function prevImg(input,prevId){
       try{
         toast('Foto converteren...');
         const blob=await heic2any({blob:file,toType:'image/jpeg',quality:0.8});
-        file=new File([blob],file.name.replace(/\.heic$/i,'.jpg').replace(/\.heif$/i,'.jpg'),{type:'image/jpeg'});
+        const newName='photo_'+Date.now()+'.jpg';
+        file=new File([blob],newName,{type:'image/jpeg'});
+        toast('HEIC omgezet naar JPG ✓');
       }catch(e){
         console.warn('HEIC conversion failed:',e);
         toast('Gebruik bij voorkeur een JPG of PNG foto.',true);
@@ -2543,7 +2554,7 @@ async function uploadPhoto(file, folder='cats'){
     });
     if(error){
       toast('Foto upload mislukt: '+error.message,true);
-      console.error('Storage upload failed:', error);
+      console.error('Storage upload failed:', error.message, 'file:', file.name, 'type:', file.type);
       return null;
     }
     const {data:{publicUrl}}=sb.storage.from('cat-photos').getPublicUrl(filename);
@@ -2651,11 +2662,29 @@ function dismissLostBanner(e){
   document.getElementById('lost-banner').classList.remove('visible');
 }
 function updateLostBanner(){
-  // Lost banner removed — function kept for compatibility
-}
-// Check if user location is outside all lost cat territories
-function checkLostBannerVisibility(lat,lng){
-  // Lost banner removed — function kept for compatibility
+  const banner=document.getElementById('lost-banner');
+  const content=document.getElementById('lost-banner-content');
+  if(!banner||!content)return;
+  const lostCats=cats.filter(c=>c.lost);
+  if(!lostCats.length){banner.style.display='none';return;}
+  // Show if any lost cat is within current map view
+  const bounds=map.getBounds();
+  const visible=lostCats.filter(c=>bounds.contains([c.lat,c.lng]));
+  if(!visible.length){banner.style.display='none';return;}
+  // Show banner for first visible lost cat
+  const cat=visible[0];
+  content.innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+      ${cat.photo?`<img src="${cat.photo}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;">`:`<div style="width:36px;height:36px;border-radius:50%;background:var(--cream);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">${cat.emoji||'🐱'}</div>`}
+      <div>
+        <div style="font-weight:700;font-size:0.82rem;color:#c0623a;">🚨 ${cat.name} vermist!</div>
+        <div style="font-size:0.7rem;color:var(--mid);">${cat.breed}</div>
+      </div>
+    </div>
+    ${visible.length>1?`<div style="font-size:0.7rem;color:var(--mid);margin-bottom:4px;">+${visible.length-1} andere vermiste kat${visible.length>2?'ten':''}</div>`:''}
+    <button onclick="showDetail('${cat.id}')" style="width:100%;background:#c0623a;color:white;border:none;border-radius:6px;padding:4px 8px;font-size:0.72rem;cursor:pointer;">Bekijk profiel</button>
+    <button onclick="document.getElementById('lost-banner').style.display='none'" style="position:absolute;top:6px;right:8px;background:none;border:none;font-size:0.9rem;cursor:pointer;color:var(--mid);">✕</button>`;
+  banner.style.display='block';
 }
 
 // SPOT PIN MARKER
@@ -3492,7 +3521,7 @@ async function addExtraPhotos(input){
     if(f.type==='image/heic'||f.type==='image/heif'||f.name.toLowerCase().endsWith('.heic')||f.name.toLowerCase().endsWith('.heif')){
       try{
         const blob=await heic2any({blob:f,toType:'image/jpeg',quality:0.85});
-        f=new File([blob],f.name.replace(/\.heic$/i,'.jpg').replace(/\.heif$/i,'.jpg'),{type:'image/jpeg'});
+        f=new File([blob],'photo_'+Date.now()+'.jpg',{type:'image/jpeg'});
       }catch(e){console.warn('HEIC conversion failed:',e);}
     }
     return compressImage(f,800,0.75);
