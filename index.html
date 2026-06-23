@@ -1997,11 +1997,9 @@ function setMe(u, silent=false){
   me=u;
   document.getElementById('header-username').textContent=u.name;
   document.getElementById('header-avatar').textContent=u.name[0].toUpperCase();
-  // Sessie opslaan zodat je ingelogd blijft na refresh
   try{localStorage.setItem('kk_session', JSON.stringify({id:u.id,name:u.name}));}catch(e){}
-  // Never store password/hash in localStorage
   renderAll();
-  // Center map on own cats after a short delay (map needs to be ready)
+  loadDismissalsFromDB(); // load dismissals from Supabase
   setTimeout(()=>centerOnOwnCats(), 300);
   if(!silent)toast(`Welkom, ${u.name}! 👋`);
 }
